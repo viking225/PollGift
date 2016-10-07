@@ -23,8 +23,6 @@ router.post('/',
         var command = Functions.getCommand(options.message.text);
 
         options.command = command.command;
-        return res.end();
-    
 
         if(command.command == 'incase'){
 
@@ -32,13 +30,15 @@ router.post('/',
         else{
             return Help.sendHelpMessage(options, function onMessageSent(err, message){
                 if(err){
-                    res.writeHead(err.statusCode);
                     debug('error while sending help');
-                }else
+                    res.writeHead(err.statusCode);
+                    return res.end();
+                }else {
                     debug('Help Message Sent');
+                    return res.end();
+                }
             });
         }
-
     });
 
 module.exports = router;

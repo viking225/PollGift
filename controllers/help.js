@@ -10,7 +10,6 @@ var messageEvent = new EventEmitter();
 module.exports =  {
     sendHelpMessage: function sendHelp(options, callback){
 
-        console.log(options.command);
         var messageOptions = {};
         var message = '<pre>Commande inconnue voici mes commandes: </pre>';
 
@@ -34,16 +33,15 @@ module.exports =  {
                 message += commandArray['Description'] + ' ';
             }
         }
-        console.log(message);
 
         messageOptions.text = message;
         messageOptions.chat_id = options.chat.id;
         messageOptions.parse_mode = 'HTML';
 
-        return Functions.callTelegramApi('sendMessage', messageOptions,
+        Functions.callTelegramApi('sendMessage', messageOptions,
             function onSend(err, backMessage){
                 if (err) return messageEvent.emit('error', err);
-                return messageEvent.emit('messageSent', backMessage);
+                messageEvent.emit('messageSent', backMessage);
             });
 
     }
