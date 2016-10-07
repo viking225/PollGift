@@ -15,11 +15,11 @@ var help = require('./routes/help');
 
 //Logger Option
 HttpLogger.token('acTime', function(){
-  var myDate = new Date();
-  var hours = (myDate.getHours()<10 ? '0':'') + myDate.getHours();
-  var min = (myDate.getMinutes()<10 ? '0':'') + myDate.getMinutes();
-  var sec = (myDate.getSeconds()<10 ? '0':'') + myDate.getSeconds();
-  return  '[' + hours + ':' + min + ':' + sec + ']';
+    var myDate = new Date();
+    var hours = (myDate.getHours()<10 ? '0':'') + myDate.getHours();
+    var min = (myDate.getMinutes()<10 ? '0':'') + myDate.getMinutes();
+    var sec = (myDate.getSeconds()<10 ? '0':'') + myDate.getSeconds();
+    return  '[' + hours + ':' + min + ':' + sec + ']';
 });
 
 var app = express();
@@ -29,9 +29,9 @@ app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
 
 if(app.get('env') =='development'){
-  app.use(HttpLogger('dev'));
+    app.use(HttpLogger('dev'));
 }else{
-  app.use(HttpLogger(':acTime :method :url :status :response-time ms - :res[content-length]'));
+    app.use(HttpLogger(':acTime :method :url :status :response-time ms - :res[content-length]'));
 }
 
 //Connection with database
@@ -48,9 +48,9 @@ app.use('/help', help);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
-  var err = new Error('Not Found');
-  err.status = 404;
-  next(err);
+    var err = new Error('Not Found');
+    err.status = 404;
+    next(err);
 });
 
 //On launch
@@ -64,21 +64,22 @@ conn.once('open', function onOpen(){
 
 // error handlers
 if (app.get('env') === 'development') {
-  app.use(function(err, req, res, next) {
-    res.status(err.status || 500);
-    res.render('error', {
-      message: err.message,
-      error: err
+    app.use(function(err, req, res, next) {
+        res.status(err.status || 500);
+        res.render('error', {
+            message: err.message,
+            error: err
+        });
     });
-  });
 }
 
 app.use(function(err, req, res, next) {
-  res.status(err.status || 500);
-  res.render('error', {
-    message: err.message,
-    error: {}
-  });
+    console.log(err);
+    res.status(err.status || 500);
+    res.render('error', {
+        message: err.message,
+        error: {}
+    });
 });
 
 

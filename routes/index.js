@@ -5,6 +5,7 @@ var router = express.Router();
 var Functions = require('../functions');
 var controllers = require('../controllers');
 var Help = controllers.help;
+var Poll = controllers.poll;
 const https = require('https');
 var debug = require('debug')('PollGiftBot:index');
 
@@ -22,13 +23,31 @@ router.post('/',
         var options = {message: req.body.message, chat: req.body.message.chat};
         var command = Functions.getCommand(options.message.text);
 
+        console.log('in post');
         options.command = command.command;
+        console.log(req.body);
+
+        debug('end here');
+        return res.respond(200);
 
         if(command.command == 'incase'){
 
         }
+        else if(command.command == 'createpoll'){
+
+            return Poll.createPoll(options, function onPollCreate(err, poll){
+                if(err){
+                    debug('error While creating poll');
+                    res.writeHead(err.statusCode);
+                    return res.end();
+                }else{
+                    console.log(poll);
+                    return res.end();
+                }
+            });
+        }
         else{
-            return Help.sendHelpMessage(options, function onMessageSent(err, message){
+            Help.sendHelpMessage(options, function onMessageSent(err, message){
                 if(err){
                     debug('error while sending help');
                     res.writeHead(err.statusCode);

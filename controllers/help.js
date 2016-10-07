@@ -18,6 +18,7 @@ module.exports =  {
         });
 
         messageEvent.on('error', function onErr(err){
+            console.log('laucn err');
             return callback(err);
         });
 
@@ -41,7 +42,7 @@ module.exports =  {
         Functions.callTelegramApi('sendMessage', messageOptions,
             function onSend(err, backMessage){
                 if (err) return messageEvent.emit('error', err);
-                messageEvent.emit('messageSent', backMessage);
+                return messageEvent.emit('messageSent', backMessage);
             });
 
     }

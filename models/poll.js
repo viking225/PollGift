@@ -20,6 +20,10 @@ var pollSchema = new Schema({
     birthday: {
         type: Date,
         required: false
+    },
+    deleted: {
+        type: Boolean,
+        default: 0
     }
 });
 

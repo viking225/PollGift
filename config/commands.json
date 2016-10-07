@@ -5,23 +5,23 @@
     "Link":	""
   },
   {
-    "Command": "/start",
+    "Command": "/createpoll",
     "Description": "Commence une session de vote",
     "Link":	""
   },
   {
     "Command": "/add",
-    "Description": "Ajoute un nouveau choix",
+    "Description": "ajoute une nouvelle option de vote",
     "Link":	""
   },
   {
-    "Command": "/price",
-    "Description": "Definit le prix ",
+    "Command": "/addprice",
+    "Description": "definit un prix pour une option",
     "Link":	""
   },
   {
-    "Command": "/link",
-    "Description": "Définit un lien",
+    "Command": "/addlink",
+    "Description": "definit un lien pour une option",
     "Link":	""
   },
   {

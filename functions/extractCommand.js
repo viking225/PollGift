@@ -7,7 +7,7 @@ module.exports = function extractCommand(string){
     var myRegex = /\/([^.@]+)(.+)$/;
     var result = myRegex.exec(string);
     return {
-        command: result[1],
+        command: result[1].toLowerCase(),
         param: result[2]
     };
 };
