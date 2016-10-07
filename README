@@ -1,0 +1,8 @@
+Ce projet a pour but de réaliser un bot telegram avec les fonctions suivantes:
+
+- Créer des sondages pour des cadeaux de groupe
+- Voter pour les différents element
+- Ajouter des images pour chaque element
+- Ajouter un prix et un lien pour chaque cadeau
+- Utiliser les fonction inline de l'api telegram
+- a venir 

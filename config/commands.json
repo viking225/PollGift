@@ -1,0 +1,42 @@
+[
+  {
+    "Command": "/help",
+    "Description": "Affiche l'aide",
+    "Link":	""
+  },
+  {
+    "Command": "/start",
+    "Description": "Commence une session de vote",
+    "Link":	""
+  },
+  {
+    "Command": "/add",
+    "Description": "Ajoute un nouveau choix",
+    "Link":	""
+  },
+  {
+    "Command": "/price",
+    "Description": "Definit le prix ",
+    "Link":	""
+  },
+  {
+    "Command": "/link",
+    "Description": "Définit un lien",
+    "Link":	""
+  },
+  {
+    "Command": "/launch",
+    "Description": "Lance le vote",
+    "Link":	""
+  },
+  {
+    "Command": "/delete",
+    "Description": "Supprime la session de vote",
+    "Link":	""
+  },
+  {
+    "Command": "/vote",
+    "Description": "Permet de voter",
+    "Link":	""
+  }
+]
