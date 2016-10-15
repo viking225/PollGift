@@ -8,24 +8,27 @@ var pollSchema = new Schema({
     type: String,
     name: {
         type: String,
-        required: true
     },
     chatId: {
         type: String,
         required: true,
-        index: {
-            required: true
-        }
+        index: true
+    },
+    userId: {
+        type: String,
+        required: true,
+        index: true
     },
     birthday: {
         type: Date,
-        required: false
     },
     deleted: {
         type: Boolean,
         default: 0
     }
 });
+
+pollSchema.set('autoIndex', false);
 
 var Poll = mongoose.model('Poll', pollSchema);
 module.exports = Poll;

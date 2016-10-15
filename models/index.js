@@ -3,5 +3,6 @@
  */
 
 module.exports = {
-    poll: require('./poll')
+    poll: require('./poll'),
+    message: require('./message')
 };

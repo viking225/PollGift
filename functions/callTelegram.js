@@ -9,11 +9,17 @@ var requestURL = coreConfig.telegramURL + coreConfig.pathRequest;
 
 module.exports = function callTelegram(func, options, cb){
 
-    requestURL += func;
-    request.post({url:requestURL, formData: options},
-        function optionalCallback(err, httpResponse, body) {
-            if (err) return cb(err);
-            return cb(null, body);
-        });
+    var getUrl = requestURL;
+    getUrl += func;
+    try{
+        request.post({url:getUrl, formData: options},
+            function optionalCallback(err, httpResponse, body) {
+                if (err) return cb(err);
+                return cb(null, JSON.parse(body));
+            });
+    }catch(err){
+        console.log(err);
+        return false;
+    }
 
 };
