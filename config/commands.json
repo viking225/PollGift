@@ -6,27 +6,22 @@
   },
   {
     "Command": "/createpoll",
-    "Description": "Commence une session de vote",
+    "Description": "Crée un sondage",
     "Link":	""
   },
   {
     "Command": "/add",
-    "Description": "ajoute une nouvelle option de vote",
+    "Description": "Ajoute une nouvelle option de vote",
     "Link":	""
   },
   {
-    "Command": "/addprice",
-    "Description": "definit un prix pour une option",
-    "Link":	""
-  },
-  {
-    "Command": "/addlink",
-    "Description": "definit un lien pour une option",
+    "Command": "/modify",
+    "Description": "Modifier une option",
     "Link":	""
   },
   {
     "Command": "/launch",
-    "Description": "Lance le vote",
+    "Description": "Commence une session de vote",
     "Link":	""
   },
   {

@@ -6,6 +6,7 @@ var Functions = require('../functions');
 var controllers = require('../controllers');
 var Help = controllers.help;
 var Poll = controllers.poll;
+var Choice = controllers.choice;
 const https = require('https');
 var debug = require('debug')('PollGiftBot:index');
 
@@ -67,7 +68,8 @@ var launchCommands = function(res, options){
             debug('Poll delete instance launched');
             return res.end();
         });
-    }else if(commands.command == 'deleteConfirm'){
+    }
+    else if(commands.command == 'deleteConfirm'){
         return Poll.delete(options, function onDel(err, poll){
             if(err){
                 debug('error while deleting poll');
@@ -98,7 +100,53 @@ var launchCommands = function(res, options){
         });
     }
     else if(commands.command == 'add'){
-        
+        //On va get le poll et verfier qu'il est dans le bon etat et que c'est la bonne personne qui veut faire la modif
+
+        return Poll.getPoll({chatId: options.chat.id, type: 'building'} ,
+            function onGetPoll(err, pollFinded){
+                if(err){
+                    debug('error while fetching Poll' +err);
+                    return res.end();
+                }
+
+                options.poll = pollFinded;
+
+                return Choice.addChoice(options, function onAdd(err, choiceAdd){
+                    if(err) {
+                        debug('error while adding Choice to poll' + err);
+                        return res.end();
+                    }
+                    if(choiceAdd){
+                        debug('Choice added');
+                        return res.end();
+                    }
+                });
+            });
+    }else if(commands.command == 'modify'){
+        //envoyer des commandes inline et sauvegarder les messages
+
+        return Poll.getPoll({chatId: options.chat.id, type: 'building'},
+            function onGetPoll(err, pollFinded){
+                if(err){
+                    debug('error while Fetching Poll'+err);
+                    return res.end();
+                }
+
+                options.poll = pollFinded;
+                return Choice.sendModifyInline(options, function onSend(err, message){
+                        if(err){
+                            debug('error while sending inline modify');
+                            return res.end();
+                        }
+
+                        if(message){
+                            debug('Inline Message sended');
+                            return res.end();
+                        }
+                    }
+                )
+            }
+        );
     }
     else{
         Help.sendHelpMessage(options, function onMessageSent(err, message){

@@ -8,8 +8,6 @@ var messageEvent = new EventEmitter();
 var Functions = require('../functions');
 var debug = require('debug')('PollGiftBot:pollC');
 
-
-
 var launchReturnMessage = function onCreate(cb, options){
     var messageOptions = options.messageToSend;
 

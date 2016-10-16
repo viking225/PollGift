@@ -68,7 +68,6 @@ module.exports =  {
         messageOptions.text = message;
         messageOptions.chat_id = options.chat.id;
         messageOptions.parse_mode = 'HTML';
-        messageOptions
 
         Functions.callTelegramApi('sendMessage', messageOptions,
             function onSend(err, backMessage){

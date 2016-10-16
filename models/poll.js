@@ -5,9 +5,13 @@ var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
 
 var pollSchema = new Schema({
-    type: String,
-    name: {
+    type: {
         type: String,
+        required: true,
+        default: 'building'
+    },
+    name: {
+        type: String
     },
     chatId: {
         type: String,
@@ -20,12 +24,18 @@ var pollSchema = new Schema({
         index: true
     },
     birthday: {
-        type: Date,
+        type: Date
     },
     deleted: {
         type: Boolean,
         default: 0
-    }
+    },
+    choices: [{
+        type: Schema.Types.ObjectId,
+        ref: 'Choice'
+    }]
+},{
+    timestamps: true
 });
 
 pollSchema.set('autoIndex', false);
