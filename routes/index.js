@@ -22,21 +22,46 @@ router.get('/', function(req, res, next) {
 router.post('/',
     function onCommandReceived(req, res, next){
 
-        var options = {message: req.body.message, chat: req.body.message.chat};
+        var options = {
+            message: null
+        };
 
-        if(!options.message.text){
+        try{
+            if(req.body.message){
+                options = {
+                    message: req.body.message,
+                    chat: req.body.message.chat
+                };
+                options.typeQuery = 'command';
+
+            }else if(req.body['callback_query']){
+                options.message = req.body['callback_query'].message;
+                options.from = req.body['callback_query'].from;
+                options.chat = req.body['callback_query'].message.chat;
+                options.data = req.body['callback_query'].data;
+                options.typeQuery = 'callback'
+            }
+        }catch(e){
+            console.log(e);
+            return res.end();
+        }
+
+        if(options.message == null){
             debug('No Text to ananlyse');
             return res.end();
         }
 
+        if(options.message['new_chat_participant'] || options.message['left_chat_participant']){
+            return res.end();
+        }
+
         try {
-            return Help.extractCommand(options.message, function onExtract(err, command){
+            return Help.extractCommand(options, function onExtract(err, command){
                 if(err){
                     debug('Error while extracting command');
                     res.writeHead(err.statusCode);
                     return res.end();
                 }
-                debug(command);
                 options.commands = command;
                 launchCommands(res, options);
             });
@@ -147,6 +172,64 @@ var launchCommands = function(res, options){
                 )
             }
         );
+    }
+    else if(commands.command == 'modifyChoice'){
+
+        return Poll.getPoll({chatId: options.chat.id, type: 'building'}, function onGetPoll(err, pollFinded){
+            if(err){
+                debug('error while Fetching Poll'+err);
+                return res.end();
+            }
+
+            options.poll = pollFinded;
+            return Choice.sendModifyInlineChoice(options, function onSend(err, message){
+                if(err) {
+                    debug('error while sending inline modify'+err);
+                    return res.end();
+                }
+                debug('Inline Message sended');
+                return res.end();
+            })
+        })
+    }else if(commands.command == 'modifyChoiceType'){
+        return Poll.getPoll({chatId: options.chat.id, type: 'building'}, function onGetPoll(err, pollFinded){
+            if(err){
+                debug('error while Fetching poll'+err);
+                return res.end();
+            }
+
+            options.poll = pollFinded;
+            return Choice.sendModifyInlineType(options, function onSend(err, message){
+                if(err){
+                    debug('error while sending inline modify Type'+err);
+                    return res.end();
+                }
+                debug('Inline Type Sended');
+                return res.end();
+            })
+        });
+    }else if(commands.command == 'saveAttr'){
+        return Poll.getPoll({chatId: options.chat.id, type: 'building'}, function onGetPoll(err, pollFinded){
+            if(err){
+                debug('error while Fetching poll'+err);
+                return res.end();
+            }
+
+            options.poll = pollFinded;
+            return Choice.saveAttr(options, function onSave(err, choice) {
+                if(err){
+                    debug('error in SaveAttr '+err);
+                    return res.end();
+                }
+                if(!choice){
+                    debug('No choice to save');
+                    return res.end();
+                }
+
+                debug('Choice Modified');
+                return res.end();
+            })
+        })
     }
     else{
         Help.sendHelpMessage(options, function onMessageSent(err, message){

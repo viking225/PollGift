@@ -9,6 +9,17 @@ var requestURL = coreConfig.telegramURL + coreConfig.pathRequest;
 
 module.exports = function callTelegram(func, options, cb){
 
+    if(func == 'sendMessage' || func == 'editMessageText'){
+        if(!options.hasOwnProperty('reply_markup')) {
+            var ReplyKeyboardHide = {
+                hide_keyboard: true
+            };
+            options.reply_markup = JSON.stringify(ReplyKeyboardHide);
+        }
+        if(!options.hasOwnProperty('disable_notification')){
+            options.disable_notification = 'true';
+        }
+    }
     var getUrl = requestURL;
     getUrl += func;
     try{

@@ -11,13 +11,6 @@ var debug = require('debug')('PollGiftBot:pollC');
 var launchReturnMessage = function onCreate(cb, options){
     var messageOptions = options.messageToSend;
 
-    if(!messageOptions.hasOwnProperty('reply_markup')) {
-        var ReplyKeyboardHide = {
-            hide_keyboard: true
-        };
-        messageOptions.reply_markup = JSON.stringify(ReplyKeyboardHide);
-    }
-
     return Functions.callTelegramApi('sendMessage', messageOptions,
         function onSend(err, backMessage){
             if (err) return cb(err);
@@ -27,7 +20,6 @@ var launchReturnMessage = function onCreate(cb, options){
 
 var saveNewMessage = function onSave(options, cb){
     var messageToSave = options['messageToSave'];
-    console.log(messageToSave);
     return messageToSave.save({}, function onSave(err, savedMessage){
         if(err) return cb(err);
         return cb(null, savedMessage)
@@ -47,7 +39,6 @@ var deleteMyPoll = function deleteMyPoll(Poll, options, cb){
             return launchReturnMessage(cb, options);
         }
 
-        console.log(options.commands.param.toLowerCase() );
         if(options.commands.param.toLowerCase() == 'oui'){
             pollFinded.deleted = true;
             var updatePoll = Model(pollFinded);

@@ -15,6 +15,9 @@ var messageSchema = new Schema({
         required: true,
         index: true
     },
+    userId: {
+        type: String
+    },
     command: {
         type: String,
         required: true

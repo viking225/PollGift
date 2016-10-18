@@ -19,52 +19,99 @@ messageEvent.on('error', function onErr(err, callback){
     return callback(err);
 });
 
-module.exports =  {
-    extractCommand: function extractCommand(message, callback){
+var searchCommand  = function(options, cb){
 
-        var myRegex = /\/([^.@]+)(.+)$/;
-        var command = message.text;
+    return MessageModel.findOne({Id: options.messageId, chatId: options.chatId, treated: false},
+        function onFind(err, messageFound){
+            if(err) return cb(err);
+            if(!messageFound) return cb(null, {command: 'notFound'});
 
-        if(myRegex.test(command)){
-            var result = myRegex.exec(command);
-            return callback(null, {command: result[1], param: result[2]});
-        }else{
-            if(message.hasOwnProperty('reply_to_message')){
-                var messageId = message['reply_to_message']['message_id'];
-
-                return MessageModel.findOne({Id: messageId, chatId: message.chat.id, treated: false}, function onFind(err, messageFound){
-                    if(err) return callback(err);
-                    if(!messageFound) return callback(null, {command: 'help'});
-                    var returnVal = {
-                        command: messageFound.command,
-                        param: message.text,
-                        dbMessage: messageFound
-                    };
-                    return callback(null, returnVal);
-                });
+            if(typeof messageFound.userId != 'undefined') {
+                if (messageFound.userId != options.from.id)
+                    return cb(null, {command: 'noRight'});
             }
 
+            var returnVal = {
+                command: messageFound.command,
+                dbMessage: messageFound,
+                param: []
+            };
+
+            var extractSubElement =  returnVal.command.match(/([^\/]+)/g);
+            if(extractSubElement){
+                returnVal.command = extractSubElement[0];
+                for(var index=1; index<extractSubElement.length; index++){
+                    if(extractSubElement[index])
+                        returnVal.param.push(extractSubElement[index]);
+                }
+            }
+
+            debug(returnVal);
+            return cb(null, returnVal);
+        });
+};
+
+module.exports =  {
+    extractCommand: function extractCommand(options, callback){
+
+        debug(options);
+        var message = options.message;
+        var messageId = null;
+        if(options.typeQuery == 'command'){
+            var myRegex = /\/([^.@]+)(.+)$/;
+            var command = message.text;
+
+            if(myRegex.test(command)){
+                var result = myRegex.exec(command);
+                return callback(null, {command: result[1], param: result[2]});
+            }else{
+                if(message.hasOwnProperty('reply_to_message')){
+                     messageId = message['reply_to_message']['message_id'];
+
+                    return searchCommand({messageId :messageId, chatId: message.chat.id, from: message.from},
+                        function onExtract(err, commandFound){
+                            if(err) return callback(err);
+                            return callback(null, commandFound);
+                        })
+                }
+            }
+        }else if(options.typeQuery == 'callback'){
+            messageId = message['message_id'];
+            var chatId = message.chat.id;
+
+            return searchCommand({messageId: messageId, chatId: chatId, from: options.from},
+                function onExtract(err, commandFound){
+                    if(err) return callback(err);
+                    commandFound.param = options.data;
+                    return callback(null, commandFound);
+                }
+            );
         }
-        return callback(null, {command: 'help'});
+        return callback(null, {command: 'notFound'});
     },
     sendHelpMessage: function sendHelp(options, callback){
 
         var messageOptions = {};
-        var message = '<pre>Commande inconnue voici mes commandes: </pre>';
+        var message = '<pre>Commande inconnue. /help pour la liste des commandes </pre>';
 
-        if(options.commands.command == 'help')
-            message = "<pre>Bonjour je suis le PollBot voici mes commandes: </pre> ";
-
-        for(var index in commandsJson){
-
-            if(commandsJson.hasOwnProperty(index)){
-                var commandArray = commandsJson[index];
-
-                message += '<pre>' + commandArray['Command'] + ' </pre> ';
-                message += commandArray['Description'] + ' ';
-            }
+        if(options.commands.command == 'noRight'){
+            var message = '<pre>NOPE ! @' + options.from.username + 'Vous n\'avez pas le droit de réaliser cette action </pre>';
         }
 
+        if(options.commands.command == 'help') {
+            message = "<pre>Bonjour je suis le PollBot voici mes commandes: </pre> ";
+
+            for (var index in commandsJson) {
+
+                if (commandsJson.hasOwnProperty(index)) {
+                    var commandArray = commandsJson[index];
+
+                    message += '<pre>' + commandArray['Command'] + ' </pre> ';
+                    message += commandArray['Description'] + ' ';
+                }
+            }
+
+        }
         messageOptions.text = message;
         messageOptions.chat_id = options.chat.id;
         messageOptions.parse_mode = 'HTML';
