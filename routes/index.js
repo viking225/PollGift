@@ -26,6 +26,8 @@ router.post('/',
             message: null
         };
 
+        debug(req.body);
+
         try{
             if(req.body.message){
                 options = {
@@ -39,6 +41,7 @@ router.post('/',
                 options.from = req.body['callback_query'].from;
                 options.chat = req.body['callback_query'].message.chat;
                 options.data = req.body['callback_query'].data;
+                options.queryId = req.body['callback_query'].id;
                 options.typeQuery = 'callback'
             }
         }catch(e){
@@ -135,7 +138,12 @@ var launchCommands = function(res, options){
                 }
 
                 options.poll = pollFinded;
-
+                if(!pollFinded){
+                    return Help.showNoPollMessage(options, function onSend(err, backMessage){
+                        if(err) debug('Error while sending no message');
+                        return res.end();
+                    })
+                }
                 return Choice.addChoice(options, function onAdd(err, choiceAdd){
                     if(err) {
                         debug('error while adding Choice to poll' + err);
@@ -147,7 +155,8 @@ var launchCommands = function(res, options){
                     }
                 });
             });
-    }else if(commands.command == 'modify'){
+    }
+    else if(commands.command == 'modify'){
         //envoyer des commandes inline et sauvegarder les messages
 
         return Poll.getPoll({chatId: options.chat.id, type: 'building'},
@@ -156,7 +165,12 @@ var launchCommands = function(res, options){
                     debug('error while Fetching Poll'+err);
                     return res.end();
                 }
-
+                if(!pollFinded){
+                    return Help.showNoPollMessage(options, function onSend(err, backMessage){
+                        if(err) debug('Error while sending no message');
+                        return res.end();
+                    })
+                }
                 options.poll = pollFinded;
                 return Choice.sendModifyInline(options, function onSend(err, message){
                         if(err){
@@ -173,6 +187,103 @@ var launchCommands = function(res, options){
             }
         );
     }
+    else if(commands.command == 'vote') {
+        return Poll.getPoll({chatId: options.chat.id},
+            function onGetPoll(err, pollFinded) {
+                if (err) {
+                    debug('error while fetching poll ' + err);
+                    return res.end();
+                }
+                if(!pollFinded){
+                    return Help.showNoPollMessage(options, function onSend(err, backMessage){
+                        if(err) debug('Error while sending no message');
+                        return res.end();
+                    })
+                }
+                if(pollFinded){
+                    //todo: check que Le vote n'est plus modifiable
+                }
+                options.poll = pollFinded;
+                return Choice.sendVoteInline(options, function onSend(err, message) {
+                    if (err) debug('Error while sending Inline Vote ' + err);
+
+                    if(!message) debug('No Message Sent');
+
+                    if (message) debug('Inline Vote sent');
+
+                    return res.end();
+
+                })
+            }
+        )
+    }
+    else if(commands.command == 'voteChoice'){
+        return Poll.getPoll({chatId: options.chat.id},
+            function onGetPoll(err, pollFinded){
+                if(err){
+                    debug('error while fetching poll ' + err);
+                    return res.end();
+                }
+                if(!pollFinded){
+                    return Help.showNoPollMessage(options, function onSend(err, backMessage){
+                        if(err) debug('Error while sending no message');
+                        return res.end();
+                    })
+                }
+                if(pollFinded){
+                    //todo: check que Le vote n'est plus modifiable
+                }
+                options.poll = pollFinded;
+                return Choice.saveVoteChoice(options,
+                    function onVote(err, message){
+                        if(err) debug('Error while saving vote '+err);
+                        if(!message) debug('Save vote failed');
+                        if(message) debug('Save vote success');
+
+                        return res.end();
+                    })
+            }
+        )
+    }
+    else if(commands.command == 'results'){
+        //envoyer les inline cliquable
+
+        return Poll.getPoll({chatId: options.chat.id},
+            function onGetPoll(err, pollFinded){
+                if(err){
+                    debug('error while Fetching Poll'+err);
+                    return res.end();
+                }
+                if(!pollFinded){
+                    return Help.showNoPollMessage(options, function onSend(err, backMessage){
+                        if(err) debug('Error while sending no message');
+                        return res.end();
+                    })
+                }
+                options.poll = pollFinded;
+                return Choice.sendResults(options, function onSend(err, message){
+                    if(err){
+                        debug('Error while showing results: '+err);
+                        return res.end();
+                    }
+
+                    if(message){
+                        debug('results sended');
+                        return res.end();
+                    }
+                })
+            }
+        );
+    }
+    else if(commands.command == 'noLinkOpen'){
+        return Help.showNoLinkPopUp(options, function onShown(err, message){
+            if(err){
+                debug('error while sending notification: '+err);
+            }
+            return res.end();
+
+        })
+    }
     else if(commands.command == 'modifyChoice'){
 
         return Poll.getPoll({chatId: options.chat.id, type: 'building'}, function onGetPoll(err, pollFinded){
@@ -180,7 +291,12 @@ var launchCommands = function(res, options){
                 debug('error while Fetching Poll'+err);
                 return res.end();
             }
-
+            if(!pollFinded){
+                return Help.showNoPollMessage(options, function onSend(err, backMessage){
+                    if(err) debug('Error while sending no message');
+                    return res.end();
+                })
+            }
             options.poll = pollFinded;
             return Choice.sendModifyInlineChoice(options, function onSend(err, message){
                 if(err) {
@@ -191,13 +307,19 @@ var launchCommands = function(res, options){
                 return res.end();
             })
         })
-    }else if(commands.command == 'modifyChoiceType'){
+    }
+    else if(commands.command == 'modifyChoiceType'){
         return Poll.getPoll({chatId: options.chat.id, type: 'building'}, function onGetPoll(err, pollFinded){
             if(err){
                 debug('error while Fetching poll'+err);
                 return res.end();
             }
-
+            if(!pollFinded){
+                return Help.showNoPollMessage(options, function onSend(err, backMessage){
+                    if(err) debug('Error while sending no message');
+                    return res.end();
+                })
+            }
             options.poll = pollFinded;
             return Choice.sendModifyInlineType(options, function onSend(err, message){
                 if(err){
@@ -208,25 +330,27 @@ var launchCommands = function(res, options){
                 return res.end();
             })
         });
-    }else if(commands.command == 'saveAttr'){
+    }
+    else if(commands.command == 'saveAttr'){
         return Poll.getPoll({chatId: options.chat.id, type: 'building'}, function onGetPoll(err, pollFinded){
             if(err){
                 debug('error while Fetching poll'+err);
                 return res.end();
             }
-
+            if(!pollFinded){
+                return Help.showNoPollMessage(options, function onSend(err, backMessage){
+                    if(err) debug('Error while sending no message');
+                    return res.end();
+                })
+            }
             options.poll = pollFinded;
-            return Choice.saveAttr(options, function onSave(err, choice) {
+            return Choice.saveAttr(options, function onSave(err, message) {
                 if(err){
                     debug('error in SaveAttr '+err);
                     return res.end();
                 }
-                if(!choice){
-                    debug('No choice to save');
-                    return res.end();
-                }
 
-                debug('Choice Modified');
+                debug('SaveAttr exited safely');
                 return res.end();
             })
         })

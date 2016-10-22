@@ -7,6 +7,7 @@ var EventEmitter = require('events').EventEmitter;
 var messageEvent = new EventEmitter();
 var Functions = require('../functions');
 var debug = require('debug')('PollGiftBot:pollC');
+var ChoiceController = null;
 
 var launchReturnMessage = function onCreate(cb, options){
     var messageOptions = options.messageToSend;
@@ -71,7 +72,6 @@ var poll = {
     init: function onInit(){
         return true;
     },
-
     createPoll: function createPoll(options, cb) {
         var Poll = this;
         Poll.init();

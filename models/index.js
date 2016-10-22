@@ -5,5 +5,6 @@
 module.exports = {
     poll: require('./poll'),
     message: require('./message'),
-    choice: require('./choice')
+    choice: require('./choice'),
+    vote: require('./vote')
 };

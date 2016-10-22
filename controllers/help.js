@@ -51,29 +51,36 @@ var searchCommand  = function(options, cb){
         });
 };
 
+var getCommandRegex = function onGet(command, callback){
+    var myRegex = /\/([^.@]+)(.+)$/;
+
+    if(myRegex.test(command)){
+        var result = myRegex.exec(command);
+        return callback(null, {command: result[1], param: result[2]});
+    }
+
+
+};
 module.exports =  {
     extractCommand: function extractCommand(options, callback){
 
-        debug(options);
         var message = options.message;
         var messageId = null;
         if(options.typeQuery == 'command'){
-            var myRegex = /\/([^.@]+)(.+)$/;
             var command = message.text;
 
-            if(myRegex.test(command)){
-                var result = myRegex.exec(command);
-                return callback(null, {command: result[1], param: result[2]});
-            }else{
-                if(message.hasOwnProperty('reply_to_message')){
-                     messageId = message['reply_to_message']['message_id'];
+            if(message.hasOwnProperty('reply_to_message')){
+                messageId = message['reply_to_message']['message_id'];
 
-                    return searchCommand({messageId :messageId, chatId: message.chat.id, from: message.from},
-                        function onExtract(err, commandFound){
-                            if(err) return callback(err);
+                return searchCommand({messageId :messageId, chatId: message.chat.id, from: message.from},
+                    function onExtract(err, commandFound){
+                        if(err) return callback(err);
+                        if(commandFound)
                             return callback(null, commandFound);
-                        })
-                }
+                        return getCommandRegex(command, callback);
+                    })
+            }else{
+                return getCommandRegex(command, callback);
             }
         }else if(options.typeQuery == 'callback'){
             messageId = message['message_id'];
@@ -116,11 +123,38 @@ module.exports =  {
         messageOptions.chat_id = options.chat.id;
         messageOptions.parse_mode = 'HTML';
 
-        Functions.callTelegramApi('sendMessage', messageOptions,
+        return Functions.callTelegramApi('sendMessage', messageOptions,
             function onSend(err, backMessage){
                 if (err) return messageEvent.emit('error', err, callback);
                 return messageEvent.emit('messageSent', backMessage, callback);
             });
 
+    },
+    showNoLinkPopUp : function showPopUp(options, callback){
+        var message = 'Pas de lien';
+        var callBackOptions = {
+            text: message,
+            callback_query_id:  options.queryId
+        };
+
+        return Functions.callTelegramApi('answerCallbackQuery', callBackOptions,
+            function onSend(err, backMessage){
+                if(err || backMessage.ok == false) return callback(err);
+                return callback(null, backMessage);
+            }
+        );
+    },
+    showNoPollMessage: function onShow(options, callback){
+        var messageToSend = {
+            text: '<pre>No Poll, create One</pre>',
+            chat_id: options.chat.id,
+            parse_mode: 'HTML'
+        } ;
+
+        return Functions.callTelegramApi('sendMessage', messageToSend,
+            function onSend(err, backMessage){
+                if (err) return messageEvent.emit('error', err, callback);
+                return messageEvent.emit('messageSent', backMessage, callback);
+            });
     }
 };

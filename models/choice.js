@@ -19,7 +19,11 @@ var choiceSchema = new Schema({
         type: String
     },
     price: Number,
-    link: String
+    link: String,
+    votes: [{
+        type: Schema.Types.ObjectId,
+        ref: 'Vote'
+    }]
 
 });
 
