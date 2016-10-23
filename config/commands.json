@@ -25,8 +25,18 @@
     "Link":	""
   },
   {
+    "Command": "/results",
+    "Description": "Afficher les résultats",
+    "Link":	""
+  },
+  {
     "Command": "/delete",
     "Description": "Supprime la session de vote",
+    "Link":	""
+  },
+  {
+    "Command": "/deletechoice",
+    "Description": "Supprimer une option",
     "Link":	""
   },
   {

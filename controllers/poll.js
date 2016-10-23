@@ -40,7 +40,7 @@ var deleteMyPoll = function deleteMyPoll(Poll, options, cb){
             return launchReturnMessage(cb, options);
         }
 
-        if(options.commands.param.toLowerCase() == 'oui'){
+        if(options.commands.param[0].toLowerCase() == 'oui'){
             pollFinded.deleted = true;
             var updatePoll = Model(pollFinded);
 
@@ -121,49 +121,62 @@ var poll = {
             return deleteMyPoll(Poll, options, cb);
         });
     },
+    launch: function launchPoll(options, cb){
+        var Poll = this;
+        Poll.init();
+
+        options.poll.type = 'ready';
+        var newPoll = new Model(options.poll);
+        return newPoll.save({}, function onSave(err, savedVote){
+            if(err) return cb(err);
+            if(!savedVote) return cb(new Error('Pas de sauvegarde du vote'));
+
+            var messageToSend = {
+                text: '<pre>Le Poll est lancé !</pre>',
+                chat_id: options.chat.id,
+                parse_mode: 'HTML'
+            } ;
+
+            return launchReturnMessage(function(err, message){
+                if(err) return cb(err);
+                return cb(null, message);
+            }, {messageToSend: messageToSend})
+        })
+    },
     launchDeletePoll: function launchDeletePoll(options, cb){
         var Poll = this;
         Poll.init();
 
-        return Poll.getPoll({chatId: options.chat.id},
-            function onFind(err, poll){
-                if(err) return cb(err);
-                if(!poll){
-                    options.messageToSend = {
-                        text: '<pre>No Poll to delete</pre>',
-                        chat_id: options.chat.id,
-                        parse_mode: 'HTML'
-                    } ;
-                    return launchReturnMessage(cb, options);
-                }
+        if(!options.poll){
+            return cb(new Error('No Poll passed'))
+        }
+        var poll = options.poll;
 
-                var ReplyKeyboardMarkup = {
-                    keyboard: [['Oui'], ['Non']],
-                    force_reply: true,
-                    one_time_keyboard: true
-                };
+        var ReplyKeyboardMarkup = {
+            keyboard: [['Oui'], ['Non']],
+            force_reply: true,
+            one_time_keyboard: true
+        };
 
-                var messageOptions = {
-                    text: '<pre>Voulez vous vraiment supprimer le poll actif ?</pre>',
-                    chat_id: options.chat.id,
-                    parse_mode: 'HTML',
-                    reply_markup: JSON.stringify(ReplyKeyboardMarkup)
-                } ;
+        var messageOptions = {
+            text: '<pre>Voulez vous vraiment supprimer le poll actif ?</pre>',
+            chat_id: options.chat.id,
+            parse_mode: 'HTML',
+            reply_markup: JSON.stringify(ReplyKeyboardMarkup)
+        } ;
 
-                Functions.callTelegramApi('sendMessage', messageOptions,
-                    function onSend(err, backMessage){
-                        if (err) return cb(err);
+        Functions.callTelegramApi('sendMessage', messageOptions,
+            function onSend(err, backMessage){
+                if (err) return cb(err);
 
-                        options.messageToSave = new Models.message({
-                            chatId: backMessage.result.chat.id,
-                            Id: backMessage.result['message_id'],
-                            command: 'deleteConfirm'
-                        });
+                options.messageToSave = new Models.message({
+                    chatId: backMessage.result.chat.id,
+                    Id: backMessage.result['message_id'],
+                    command: 'deleteConfirm'
+                });
 
-                        return saveNewMessage(options, cb);
-                    });
-            }
-        );
+                return saveNewMessage(options, cb);
+            });
     },
     getPoll: function getPoll(options, callback){
         if(typeof options.deleted == "undefined")

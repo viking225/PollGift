@@ -32,10 +32,10 @@ router.post('/',
             if(req.body.message){
                 options = {
                     message: req.body.message,
-                    chat: req.body.message.chat
+                    chat: req.body.message.chat,
+                    from: req.body.message.from
                 };
                 options.typeQuery = 'command';
-
             }else if(req.body['callback_query']){
                 options.message = req.body['callback_query'].message;
                 options.from = req.body['callback_query'].from;
@@ -45,8 +45,9 @@ router.post('/',
                 options.typeQuery = 'callback'
             }
         }catch(e){
-            console.log(e);
-            return res.end();
+            var chatId = req.body.message.chat.id || req.body['callback_query'].message.chat.id;
+            return Help.showMessage('error', {command: 'reader', err: e, chatId: chatId},
+                function () {return res.end()});
         }
 
         if(options.message == null){
@@ -54,9 +55,8 @@ router.post('/',
             return res.end();
         }
 
-        if(options.message['new_chat_participant'] || options.message['left_chat_participant']){
+        if(options.message['new_chat_participant'] || options.message['left_chat_participant'])
             return res.end();
-        }
 
         try {
             return Help.extractCommand(options, function onExtract(err, command){
@@ -66,10 +66,12 @@ router.post('/',
                     return res.end();
                 }
                 options.commands = command;
+                debug(command);
                 launchCommands(res, options);
             });
         }catch (error){
-            debug(error);
+            return Help.showMessage('error', {command: 'extract', err: error, chatId: options.chat.id},
+                function () {return res.end()});
         }
     });
 
@@ -78,296 +80,399 @@ module.exports = router;
 var launchCommands = function(res, options){
 
     var commands = options.commands;
-    if(commands.command == 'incase'){
-    }
-    else if(commands.command == 'delete'){
-        return Poll.launchDeletePoll(options, function onDel(err, pollInstance){
-            if(err){
-                console.log(err);
-                debug('Error while deleting poll');
-                res.writeHead(err.statusCode);
-                return res.end();
-            }
-            if(!pollInstance){
-                debug('Poll delete instance not launched');
-                return res.end();
-            }
 
-            debug('Poll delete instance launched');
-            return res.end();
-        });
-    }
-    else if(commands.command == 'deleteConfirm'){
-        return Poll.delete(options, function onDel(err, poll){
-            if(err){
-                debug('error while deleting poll');
-                return res.end();
-            }
-            if(!poll){
-                debug('Could not delete poll');
-                return res.end();
-            }
-            debug('Poll deleted');
-            return res.end();
-        });
-    }
-    else if(commands.command == 'createpoll'){
-        return Poll.createPoll(options, function onPollCreate(err, poll){
-            if(err){
-                debug('error While creating poll');
-                res.writeHead(err.statusCode);
-                return res.end();
-            }
-            if(!poll){
-                debug('Poll Already Exist');
-                return res.end();
-            }
-
-            debug('New Poll Created');
-            return res.end();
-        });
-    }
-    else if(commands.command == 'add'){
-        //On va get le poll et verfier qu'il est dans le bon etat et que c'est la bonne personne qui veut faire la modif
-
-        return Poll.getPoll({chatId: options.chat.id, type: 'building'} ,
-            function onGetPoll(err, pollFinded){
-                if(err){
-                    debug('error while fetching Poll' +err);
-                    return res.end();
-                }
-
-                options.poll = pollFinded;
+    switch (commands.command) {
+        case 'delete':
+            return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded) {
+                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
                 if(!pollFinded){
-                    return Help.showNoPollMessage(options, function onSend(err, backMessage){
-                        if(err) debug('Error while sending no message');
+                    return Help.showMessage('noPoll',{chatId: options.chat.id}, function onSend(err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
                         return res.end();
                     })
                 }
-                return Choice.addChoice(options, function onAdd(err, choiceAdd){
-                    if(err) {
+                options.poll = pollFinded;
+                return Poll.launchDeletePoll(options, function onDel(err, pollInstance) {
+                    if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                        function () {return res.end()});
+                    if (!pollInstance) {
+                        debug('Poll delete instance not launched');
+                        return res.end();
+                    }
+                    return res.end();
+                });
+            });
+            break;
+
+        case 'deleteConfirm':
+            return Poll.delete(options, function onDel(err, poll) {
+                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
+                if (!poll) {
+                    debug('Could not delete poll');
+                    return res.end();
+                }
+                debug('Poll deleted');
+                return res.end();
+            });
+            break;
+
+        case 'createpoll':
+            return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded) {
+                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
+
+                if (pollFinded) {
+                    return Help.showMessage('pollAlready',{chatId: options.chat.id}, function onSend(err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+                        return res.end();
+                    })
+                }
+
+                return Poll.createPoll(options, function onPollCreate(err, message) {
+                    if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                        function () {return res.end()});
+                    return res.end();
+                });
+            });
+            break;
+
+        case 'add':
+            return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded) {
+                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
+
+                options.poll = pollFinded;
+                if (!pollFinded) {
+                    return Help.showMessage('noPoll',{chatId: options.chat.id}, function onSend(err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+                        return res.end();
+                    })
+                }
+                if(pollFinded.type != 'building'){
+                    return Help.showMessage('launchedPoll', {chatId: options.chat.id, username:options.from.username},
+                        function onSend(err){
+                            if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                                function () {return res.end()});
+                            return res.end();
+                        })
+                }
+                return Choice.addChoice(options, function onAdd(err, choiceAdd) {
+                    if (err) {
                         debug('error while adding Choice to poll' + err);
                         return res.end();
                     }
-                    if(choiceAdd){
+                    if (choiceAdd) {
                         debug('Choice added');
                         return res.end();
                     }
                 });
             });
-    }
-    else if(commands.command == 'modify'){
-        //envoyer des commandes inline et sauvegarder les messages
+            break;
 
-        return Poll.getPoll({chatId: options.chat.id, type: 'building'},
-            function onGetPoll(err, pollFinded){
-                if(err){
-                    debug('error while Fetching Poll'+err);
-                    return res.end();
+        case 'launch':
+            return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded) {
+                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
+
+                if (!pollFinded) return Help.showMessage('noPoll',{chatId: options.chat.id}, function onSend(err) {
+                    if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                        function () {return res.end()});
+                    return res.end()
+                });
+
+                options.poll = pollFinded;
+                if (pollFinded.type != 'building') {
+                    return Help.showMessage('launchedPoll', {username: options.from.username,chatId: options.chat.id}, function onSend(err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+                        return res.end();
+                    })
                 }
-                if(!pollFinded){
-                    return Help.showNoPollMessage(options, function onSend(err, backMessage){
-                        if(err) debug('Error while sending no message');
+
+                //On lance le poll
+                return Poll.launch(options, function onSend(err) {
+                    if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                        function () {return res.end()});
+                    return Choice.sendVoteInline(options, function onSend(err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+                        return res.end();
+                    })
+                })
+            });
+            break;
+
+        case 'modify':
+            return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded) {
+                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
+
+                if (!pollFinded) {
+                    return Help.showMessage('noPoll', {chatId: options.chat.id}, function (err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+                        return res.end()
+                    });
+                }
+
+                if(pollFinded.type != 'building'){
+                    return Help.showMessage('launchedPoll', {username: options.from.username,chatId: options.chat.id}, function onSend(err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
                         return res.end();
                     })
                 }
                 options.poll = pollFinded;
-                return Choice.sendModifyInline(options, function onSend(err, message){
-                        if(err){
-                            debug('error while sending inline modify');
-                            return res.end();
-                        }
-
-                        if(message){
-                            debug('Inline Message sended');
-                            return res.end();
-                        }
+                return Choice.sendModifyInline(options, function onSend(err, message) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+                        if (message) debug('Inline Message sended');
+                        return res.end();
                     }
                 )
-            }
-        );
-    }
-    else if(commands.command == 'vote') {
-        return Poll.getPoll({chatId: options.chat.id},
-            function onGetPoll(err, pollFinded) {
-                if (err) {
-                    debug('error while fetching poll ' + err);
-                    return res.end();
-                }
-                if(!pollFinded){
-                    return Help.showNoPollMessage(options, function onSend(err, backMessage){
-                        if(err) debug('Error while sending no message');
+            });
+            break;
+
+        case 'vote':
+            return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded) {
+                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
+                if (!pollFinded) {
+                    return Help.showMessage('noPoll',{chatId:options.chat.id}, function onSend(err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
                         return res.end();
                     })
                 }
-                if(pollFinded){
-                    //todo: check que Le vote n'est plus modifiable
+                if (pollFinded.type != 'ready') {
+                    return Help.showMessage('buildingPoll', {chatId: options.chat.id}, function onSend(err){
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+                        return res.end();
+                    })
                 }
                 options.poll = pollFinded;
-                return Choice.sendVoteInline(options, function onSend(err, message) {
-                    if (err) debug('Error while sending Inline Vote ' + err);
-
-                    if(!message) debug('No Message Sent');
-
-                    if (message) debug('Inline Vote sent');
-
+                return Choice.sendVoteInline(options, function onSend(err) {
+                    if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                        function () {return res.end()});
                     return res.end();
-
                 })
-            }
-        )
-    }
-    else if(commands.command == 'voteChoice'){
-        return Poll.getPoll({chatId: options.chat.id},
-            function onGetPoll(err, pollFinded){
-                if(err){
-                    debug('error while fetching poll ' + err);
-                    return res.end();
-                }
-                if(!pollFinded){
-                    return Help.showNoPollMessage(options, function onSend(err, backMessage){
-                        if(err) debug('Error while sending no message');
+            });
+            break;
+
+
+        case 'voteChoice':
+            return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded) {
+                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
+                if (!pollFinded) {
+                    return Help.showMessage({chatId: options.chat.id}, function onSend(err) {
+                        if (err) debug('Error while sending no message');
                         return res.end();
                     })
                 }
-                if(pollFinded){
-                    //todo: check que Le vote n'est plus modifiable
+                if (pollFinded.type != 'ready') {
+                    return Help.showMessage('buildingPoll', {chatId: options.chat.id}, function onSend(err){
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+                        return res.end();
+                    })
                 }
                 options.poll = pollFinded;
                 return Choice.saveVoteChoice(options,
-                    function onVote(err, message){
-                        if(err) debug('Error while saving vote '+err);
-                        if(!message) debug('Save vote failed');
-                        if(message) debug('Save vote success');
+                    function onVote(err, message) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+                        if (!message) debug('Save vote failed');
+                        if (message) debug('Save vote success');
 
                         return res.end();
                     })
-            }
-        )
-    }
-    else if(commands.command == 'results'){
-        //envoyer les inline cliquable
+            });
+            break;
 
-        return Poll.getPoll({chatId: options.chat.id},
-            function onGetPoll(err, pollFinded){
-                if(err){
-                    debug('error while Fetching Poll'+err);
-                    return res.end();
-                }
-                if(!pollFinded){
-                    return Help.showNoPollMessage(options, function onSend(err, backMessage){
-                        if(err) debug('Error while sending no message');
+
+        case 'results':
+            return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded) {
+                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
+                if (!pollFinded) {
+                    return Help.showMessage('noPoll',{chatId: options.chat.id}, function onSend(err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
                         return res.end();
                     })
                 }
                 options.poll = pollFinded;
-                return Choice.sendResults(options, function onSend(err, message){
-                    if(err){
-                        debug('Error while showing results: '+err);
+                return Choice.sendResults(options, function onSend(err, message) {
+                    if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                        function () {return res.end()});
+                    if (message) debug('results sended');
+                    return res.end();
+                })
+            });
+            break;
+
+
+        case 'noLinkOpen':
+            return Help.showNoLinkPopUp(options, function onShown(err) {
+                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
+                return res.end();
+
+            });
+            break;
+
+        case 'deletechoice':
+            return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded){
+                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
+                if(!pollFinded){
+                    return Help.showMessage('noPoll',{chatId:options.chat.id}, function onSend(err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
                         return res.end();
-                    }
-
-                    if(message){
-                        debug('results sended');
+                    })
+                }
+                if(pollFinded.type != 'building'){
+                    return Help.showMessage('launchedPoll', {username: options.from.username,chatId: options.chat.id}, function onSend(err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
                         return res.end();
-                    }
-                })
-            }
-        );
-    }
-    else if(commands.command == 'noLinkOpen'){
-        return Help.showNoLinkPopUp(options, function onShown(err, message){
-            if(err){
-                debug('error while sending notification: '+err);
-            }
-            return res.end();
-
-        })
-    }
-    else if(commands.command == 'modifyChoice'){
-
-        return Poll.getPoll({chatId: options.chat.id, type: 'building'}, function onGetPoll(err, pollFinded){
-            if(err){
-                debug('error while Fetching Poll'+err);
-                return res.end();
-            }
-            if(!pollFinded){
-                return Help.showNoPollMessage(options, function onSend(err, backMessage){
-                    if(err) debug('Error while sending no message');
+                    })
+                }
+                options.poll = pollFinded;
+                return Choice.deleteChoice(options, function onLaunch(err){
+                    if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                        function () {return res.end()});
                     return res.end();
                 })
-            }
-            options.poll = pollFinded;
-            return Choice.sendModifyInlineChoice(options, function onSend(err, message){
-                if(err) {
-                    debug('error while sending inline modify'+err);
+            });
+        case 'deleteChoiceReal':
+            return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded){
+                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
+                if(!pollFinded){
+                    return Help.showMessage('noPoll',{chatId:options.chat.id}, function onSend(err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+                        return res.end();
+                    })
+                }
+                if(pollFinded.type != 'building'){
+                    return Help.showMessage('launchedPoll', {username: options.from.username,chatId: options.chat.id}, function onSend(err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+                        return res.end();
+                    })
+                }
+                options.poll = pollFinded;
+                return Choice.deleteChoiceReal(options, function onLaunch(err){
+                    if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                        function () {return res.end()});
+                    return res.end();
+                })
+            });
+            break;
+        case 'modifyChoice':
+            return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded) {
+                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
+                if (!pollFinded) {
+                    return Help.showMessage('noPoll',{chatId:options.chat.id}, function onSend(err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+                        return res.end();
+                    })
+                }
+                if(pollFinded.type != 'building'){
+                    return Help.showMessage('launchedPoll', {username: options.from.username,chatId: options.chat.id}, function onSend(err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+                        return res.end();
+                    })
+                }
+                options.poll = pollFinded;
+                return Choice.sendModifyInlineChoice(options, function onSend(err) {
+                    if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                        function () {return res.end()});
+                    debug('Inline Message sended');
+                    return res.end();
+                })
+            });
+            break;
+
+
+        case 'modifyChoiceType':
+            return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded) {
+                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
+                if (!pollFinded) {
+                    return Help.showMessage('noPoll',{chatId: options.chat.id}, function onSend(err) {
+                        if (err) debug('Error while sending no message');
+                        return res.end();
+                    })
+                }
+                if(pollFinded.type != 'building'){
+                    return Help.showMessage('launchedPoll', {username: options.from.username,chatId: options.chat.id}, function onSend(err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+                        return res.end();
+                    })
+                }
+                options.poll = pollFinded;
+                return Choice.sendModifyInlineType(options, function onSend(err) {
+                    if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                        function () {return res.end()});
+                    return res.end();
+                })
+            });
+            break;
+
+
+        case 'saveAttr':
+            return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded) {
+                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
+                if (!pollFinded) {
+                    return Help.showMessage('noPoll', {chatId: options.chat.id}, function onSend(err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+                        return res.end();
+                    })
+                }
+                if(pollFinded.type != 'building'){
+                    return Help.showMessage('launchedPoll', {username: options.from.username,chatId: options.chat.id}, function onSend(err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+                        return res.end();
+                    })
+                }
+                options.poll = pollFinded;
+                return Choice.saveAttr(options, function onSave(err) {
+                    if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                        function () {return res.end()});
+                    return res.end();
+                })
+            });
+            break;
+
+        default:
+            Help.sendHelpMessage(options, function onMessageSent(err, message) {
+                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
+                if (!message) {
+                    debug('No message sent');
                     return res.end();
                 }
-                debug('Inline Message sended');
+                debug('Help Message Sent');
                 return res.end();
-            })
-        })
-    }
-    else if(commands.command == 'modifyChoiceType'){
-        return Poll.getPoll({chatId: options.chat.id, type: 'building'}, function onGetPoll(err, pollFinded){
-            if(err){
-                debug('error while Fetching poll'+err);
-                return res.end();
-            }
-            if(!pollFinded){
-                return Help.showNoPollMessage(options, function onSend(err, backMessage){
-                    if(err) debug('Error while sending no message');
-                    return res.end();
-                })
-            }
-            options.poll = pollFinded;
-            return Choice.sendModifyInlineType(options, function onSend(err, message){
-                if(err){
-                    debug('error while sending inline modify Type'+err);
-                    return res.end();
-                }
-                debug('Inline Type Sended');
-                return res.end();
-            })
-        });
-    }
-    else if(commands.command == 'saveAttr'){
-        return Poll.getPoll({chatId: options.chat.id, type: 'building'}, function onGetPoll(err, pollFinded){
-            if(err){
-                debug('error while Fetching poll'+err);
-                return res.end();
-            }
-            if(!pollFinded){
-                return Help.showNoPollMessage(options, function onSend(err, backMessage){
-                    if(err) debug('Error while sending no message');
-                    return res.end();
-                })
-            }
-            options.poll = pollFinded;
-            return Choice.saveAttr(options, function onSave(err, message) {
-                if(err){
-                    debug('error in SaveAttr '+err);
-                    return res.end();
-                }
-
-                debug('SaveAttr exited safely');
-                return res.end();
-            })
-        })
-    }
-    else{
-        Help.sendHelpMessage(options, function onMessageSent(err, message){
-            if(err){
-                debug('error while sending help');
-                res.writeHead(err.statusCode);
-                return res.end();
-            }
-            if(!message) {
-                debug('No message sent');
-                return res.end();
-            }
-            debug('Help Message Sent');
-            return res.end();
-        });
+            });
+            break;
     }
 };

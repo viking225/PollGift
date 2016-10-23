@@ -20,10 +20,10 @@ var choiceSchema = new Schema({
     },
     price: Number,
     link: String,
-    votes: [{
-        type: Schema.Types.ObjectId,
-        ref: 'Vote'
-    }]
+    deleted: {
+        type: Boolean,
+        default: 0
+    }
 
 });
 

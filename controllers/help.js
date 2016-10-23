@@ -46,13 +46,12 @@ var searchCommand  = function(options, cb){
                 }
             }
 
-            debug(returnVal);
             return cb(null, returnVal);
         });
 };
 
 var getCommandRegex = function onGet(command, callback){
-    var myRegex = /\/([^.@]+)(.+)$/;
+    var myRegex = /\/([^.@]+)(.*)$/;
 
     if(myRegex.test(command)){
         var result = myRegex.exec(command);
@@ -75,8 +74,13 @@ module.exports =  {
                 return searchCommand({messageId :messageId, chatId: message.chat.id, from: message.from},
                     function onExtract(err, commandFound){
                         if(err) return callback(err);
-                        if(commandFound)
+                        if(commandFound){
+                            if(!commandFound.param)
+                                commandFound.param = [message.text];
+                            else
+                                commandFound.param.push(message.text);
                             return callback(null, commandFound);
+                        }
                         return getCommandRegex(command, callback);
                     })
             }else{
@@ -98,30 +102,28 @@ module.exports =  {
     },
     sendHelpMessage: function sendHelp(options, callback){
 
-        var messageOptions = {};
-        var message = '<pre>Commande inconnue. /help pour la liste des commandes </pre>';
+        var messageOptions = {
+            text: '<pre>Commande inconnue. /help pour la liste des commandes </pre>',
+            chat_id: options.chat.id,
+            parse_mode: 'HTML'
+        };
 
         if(options.commands.command == 'noRight'){
-            var message = '<pre>NOPE ! @' + options.from.username + 'Vous n\'avez pas le droit de réaliser cette action </pre>';
+            messageOptions.text = '<pre>NOPE ! @' + options.from.username + 'Vous n\'avez pas le droit de réaliser cette action </pre>';
         }
 
         if(options.commands.command == 'help') {
-            message = "<pre>Bonjour je suis le PollBot voici mes commandes: </pre> ";
-
+            var message = "<pre>Bonjour je suis le PollBot voici mes commandes: </pre> ";
             for (var index in commandsJson) {
-
                 if (commandsJson.hasOwnProperty(index)) {
                     var commandArray = commandsJson[index];
 
-                    message += '<pre>' + commandArray['Command'] + ' </pre> ';
-                    message += commandArray['Description'] + ' ';
+                    message += commandArray['Command']+' ';
+                    message += '<pre>'+commandArray['Description'] + '</pre> ';
                 }
             }
-
+            messageOptions.text = message;
         }
-        messageOptions.text = message;
-        messageOptions.chat_id = options.chat.id;
-        messageOptions.parse_mode = 'HTML';
 
         return Functions.callTelegramApi('sendMessage', messageOptions,
             function onSend(err, backMessage){
@@ -144,12 +146,32 @@ module.exports =  {
             }
         );
     },
-    showNoPollMessage: function onShow(options, callback){
+    showMessage: function onShow(action, options, callback){
+
         var messageToSend = {
-            text: '<pre>No Poll, create One</pre>',
-            chat_id: options.chat.id,
+            text: '<pre>Commande inconnue. /help pour la liste des commandes </pre>',
+            chat_id: options.chatId,
             parse_mode: 'HTML'
-        } ;
+        };
+        switch (action){
+            case 'noPoll':
+                messageToSend.text = '<pre>Pas de Poll disponible pour cette action</pre>';
+                break;
+            case 'pollAlready':
+                messageToSend.text = '<pre>Impossible un poll exite déja</pre>';
+                break;
+            case 'error':
+                messageToSend.text = '<pre>Une erreur interne est survenue</pre>';
+                debug('Error: '+options.command+' '+options.err);
+                break;
+            case 'buildingPoll':
+                messageToSend.text = '<pre>Le poll n\'est pas encore lancé! : </pre>/launch';
+                break;
+            case 'launchedPoll':
+                messageToSend.text = '@'+options.username+' <pre>Impossible Le poll est lancé</pre>';
+                break;
+
+        }
 
         return Functions.callTelegramApi('sendMessage', messageToSend,
             function onSend(err, backMessage){
