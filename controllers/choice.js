@@ -356,7 +356,7 @@ module.exports = {
     saveVoteChoice: function onSave(options, callback){
         this.init();
         var Choice = this;
-
+        var myPoll = options.poll;
         var commands = options.commands;
 
         //Update l'ancien Message
@@ -378,7 +378,7 @@ module.exports = {
         });
 
         //On recupere le choix
-        return Model.findOne({ordre: options.data},
+        return Model.findOne({ordre: options.data, _poll: myPoll._id},
             function onFind(err, choiceFinded){
                 if(err) return callback(err);
 
