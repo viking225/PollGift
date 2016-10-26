@@ -1,4 +1,4 @@
 #Ignorer les modules node
 node_modules/
-#Ignorer le fichier default
-config/default.js
+#Ignorer les fichiers de config
+config/
