@@ -335,13 +335,12 @@ module.exports = {
                             } ;
                         }
 
+                        debug(options.messageToSend);
                         return launchReturnMessage(options,
                             function onSend(err, messageSent){
                                 if(err) return callback(err);
                                 if(typeof options.messageToSend.reply_markup != 'undefined'){
-                                    //not undefined on save
                                     options.messageToSave = new Models.message({
-                                        userId: options.message.from.id,
                                         chatId: messageSent.result.chat.id,
                                         Id: messageSent.result['message_id'],
                                         command: 'voteChoice'
@@ -359,6 +358,7 @@ module.exports = {
         var myPoll = options.poll;
         var commands = options.commands;
 
+        /*
         //Update l'ancien Message
         options.messageToSend = {
             chat_id: options.chat.id,
@@ -376,6 +376,7 @@ module.exports = {
             oldMessage.treated = true;
             saveNewMessage({messageToSave: new Models.message(oldMessage)}, callback);
         });
+        */
 
         //On recupere le choix
         return Model.findOne({ordre: options.data, _poll: myPoll._id},
@@ -391,7 +392,9 @@ module.exports = {
                 if(!choiceFinded)
                     return launchReturnMessage({messageToSend: messageToSend}, callback);
 
-                messageToSend.text = '@'+options.from.username+' <pre>a voté pour</pre> '+choiceFinded.name;
+                var username = (typeof options.from.username === 'undefined')
+                    ? options.from['first_name'] + '' + options.from['last_name']: '@'+options.from.username;
+                messageToSend.text = username+' <pre>a voté pour</pre> '+choiceFinded.name;
 
                 //On recupere l'ancien vote si il y en a un
                 return Models.vote.findOne({userId: options.from.id, chatId: options.chat.id},
@@ -399,7 +402,7 @@ module.exports = {
                         if(err) return callback(err);
 
                         if(oldVote) {
-                            messageToSend.text = '@' + options.from.username + ' <pre>Vote modifié son choix pour </pre>'+choiceFinded.name;
+                            messageToSend.text = username + ' <pre>Vote modifié pour </pre>'+choiceFinded.name;
                             oldVote._choice = choiceFinded.id;
                         }else{
                             oldVote = new Models.vote({

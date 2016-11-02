@@ -20,13 +20,9 @@ router.get('/', function(req, res, next) {
 });
 
 router.post('/',
-    function onCommandReceived(req, res, next){
+    function onCommandReceived(req, res){
 
-        var options = {
-            message: null
-        };
-
-        debug(req.body);
+        var options = {message: null};
 
         try{
             if(req.body.message){
@@ -50,23 +46,15 @@ router.post('/',
                 function () {return res.end()});
         }
 
-        if(options.message == null){
-            debug('No Text to ananlyse');
+        if(options.message == null)
             return res.end();
-        }
 
         if(options.message['new_chat_participant'] || options.message['left_chat_participant'])
             return res.end();
 
         try {
             return Help.extractCommand(options, function onExtract(err, command){
-                if(err){
-                    debug('Error while extracting command');
-                    res.writeHead(err.statusCode);
-                    return res.end();
-                }
                 options.commands = command;
-                debug(command);
                 launchCommands(res, options);
             });
         }catch (error){
@@ -187,23 +175,35 @@ var launchCommands = function(res, options){
 
                 options.poll = pollFinded;
                 if (pollFinded.type != 'building') {
-                    return Help.showMessage('launchedPoll', {username: options.from.username,chatId: options.chat.id}, function onSend(err) {
+                    return Help.showMessage('launchedPoll', {from: options.from,chatId: options.chat.id}, function onSend(err) {
                         if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
                             function () {return res.end()});
                         return res.end();
                     })
                 }
 
-                //On lance le poll
-                return Poll.launch(options, function onSend(err) {
-                    if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
-                        function () {return res.end()});
-                    return Choice.sendVoteInline(options, function onSend(err) {
+                //On verifie qu'il existe des choix pour ce poll
+                return Choice.getChoices({filter:{_poll: options.poll._id}},
+                    function onGet(err, choices){
                         if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
                             function () {return res.end()});
-                        return res.end();
-                    })
-                })
+
+                        if(choices.length == 0){
+                            return Help.showMessage('noChoice', {command: commands.command, chatId: options.chat.id},
+                                function () {return res.end()});
+                        }
+
+                        //On lance le poll
+                        return Poll.launch(options, function onSend(err) {
+                            if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                                function () {return res.end()});
+                            return Choice.sendVoteInline(options, function onSend(err) {
+                                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                                    function () {return res.end()});
+                                return res.end();
+                            })
+                        })
+                    });
             });
             break;
 
@@ -221,7 +221,7 @@ var launchCommands = function(res, options){
                 }
 
                 if(pollFinded.type != 'building'){
-                    return Help.showMessage('launchedPoll', {username: options.from.username,chatId: options.chat.id}, function onSend(err) {
+                    return Help.showMessage('launchedPoll', {from: options.from,chatId: options.chat.id}, function onSend(err) {
                         if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
                             function () {return res.end()});
                         return res.end();
@@ -340,7 +340,7 @@ var launchCommands = function(res, options){
                     })
                 }
                 if(pollFinded.type != 'building'){
-                    return Help.showMessage('launchedPoll', {username: options.from.username,chatId: options.chat.id}, function onSend(err) {
+                    return Help.showMessage('launchedPoll', {from: options.from,chatId: options.chat.id}, function onSend(err) {
                         if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
                             function () {return res.end()});
                         return res.end();
@@ -365,7 +365,7 @@ var launchCommands = function(res, options){
                     })
                 }
                 if(pollFinded.type != 'building'){
-                    return Help.showMessage('launchedPoll', {username: options.from.username,chatId: options.chat.id}, function onSend(err) {
+                    return Help.showMessage('launchedPoll', {from: options.from,chatId: options.chat.id}, function onSend(err) {
                         if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
                             function () {return res.end()});
                         return res.end();
@@ -391,7 +391,7 @@ var launchCommands = function(res, options){
                     })
                 }
                 if(pollFinded.type != 'building'){
-                    return Help.showMessage('launchedPoll', {username: options.from.username,chatId: options.chat.id}, function onSend(err) {
+                    return Help.showMessage('launchedPoll', {from: options.from,chatId: options.chat.id}, function onSend(err) {
                         if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
                             function () {return res.end()});
                         return res.end();
@@ -419,7 +419,7 @@ var launchCommands = function(res, options){
                     })
                 }
                 if(pollFinded.type != 'building'){
-                    return Help.showMessage('launchedPoll', {username: options.from.username,chatId: options.chat.id}, function onSend(err) {
+                    return Help.showMessage('launchedPoll', {from: options.from,chatId: options.chat.id}, function onSend(err) {
                         if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
                             function () {return res.end()});
                         return res.end();
@@ -447,7 +447,7 @@ var launchCommands = function(res, options){
                     })
                 }
                 if(pollFinded.type != 'building'){
-                    return Help.showMessage('launchedPoll', {username: options.from.username,chatId: options.chat.id}, function onSend(err) {
+                    return Help.showMessage('launchedPoll', {from: options.from,chatId: options.chat.id}, function onSend(err) {
                         if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
                             function () {return res.end()});
                         return res.end();

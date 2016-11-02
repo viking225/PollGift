@@ -7,11 +7,9 @@ var bodyParser = require('body-parser');
 var mongoose = require('mongoose');
 var configDb = require('./config').database;
 var debug = require('debug')('PollGiftBot:app');
-require('./response');
 
 //Routes elements
 var routes = require('./routes/index');
-var help = require('./routes/help');
 
 //Logger Option
 HttpLogger.token('acTime', function(){
@@ -44,14 +42,6 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', routes);
-app.use('/help', help);
-
-// catch 404 and forward to error handler
-app.use(function(req, res, next) {
-    var err = new Error('Not Found');
-    err.status = 404;
-    next(err);
-});
 
 //On launch
 conn.on('error', function onError(){
@@ -61,26 +51,5 @@ conn.on('error', function onError(){
 conn.once('open', function onOpen(){
     debug('Connection is Open');
 });
-
-// error handlers
-if (app.get('env') === 'development') {
-    app.use(function(err, req, res, next) {
-        res.status(err.status || 500);
-        res.render('error', {
-            message: err.message,
-            error: err
-        });
-    });
-}
-
-app.use(function(err, req, res, next) {
-    console.log(err);
-    res.status(err.status || 500);
-    res.render('error', {
-        message: err.message,
-        error: {}
-    });
-});
-
 
 module.exports = app;

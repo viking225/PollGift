@@ -109,7 +109,9 @@ module.exports =  {
         };
 
         if(options.commands.command == 'noRight'){
-            messageOptions.text = '<pre>NOPE ! @' + options.from.username + 'Vous n\'avez pas le droit de réaliser cette action </pre>';
+            var username = (typeof options.from.username === 'undefined')
+                ? options.from['first_name'] + '' + options.from['last_name']: '@'+options.from.username;
+            messageOptions.text = 'NOPE ! ' + username + '<pre>Vous n\'avez pas le droit de réaliser cette action </pre>';
         }
 
         if(options.commands.command == 'help') {
@@ -147,15 +149,21 @@ module.exports =  {
         );
     },
     showMessage: function onShow(action, options, callback){
-
         var messageToSend = {
             text: '<pre>Commande inconnue. /help pour la liste des commandes </pre>',
             chat_id: options.chatId,
             parse_mode: 'HTML'
         };
+
+        var username = (typeof options.from.username === 'undefined')
+            ? options.from['first_name'] + '' + options.from['last_name']: '@'+options.from.username;
+
         switch (action){
             case 'noPoll':
                 messageToSend.text = '<pre>Pas de Poll disponible pour cette action</pre>';
+                break;
+            case 'noChoice':
+                messageToSend.text = '<pre>Veuillez ajouter plus de choix</pre>';
                 break;
             case 'pollAlready':
                 messageToSend.text = '<pre>Impossible un poll exite déja</pre>';
@@ -168,7 +176,7 @@ module.exports =  {
                 messageToSend.text = '<pre>Le poll n\'est pas encore lancé! : </pre>/launch';
                 break;
             case 'launchedPoll':
-                messageToSend.text = '@'+options.username+' <pre>Impossible Le poll est lancé</pre>';
+                messageToSend.text = username + ' <pre> Impossible Le poll est lancé</pre>';
                 break;
 
         }
