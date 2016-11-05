@@ -32,6 +32,15 @@ var launchReturnMessage = function onCreate(options, cb){
         });
 };
 
+var showPopUp = function onShow(options, cb) {
+    return Functions.callTelegramApi('answerCallbackQuery', options,
+        function onSend(err, backMessage){
+            if(err || backMessage.ok == false) return cb(err);
+            return cb(null, backMessage);
+        }
+    );
+};
+
 var saveNewMessage = function onSave(options, cb){
     var messageToSave = options['messageToSave'];
 
@@ -64,6 +73,7 @@ var launchSaveChoice = function(options, cb){
     return newChoice.save({}, function onSaveChoice(err, choiceSaved){
         if(err || !choiceSaved)
             return launchReturnMessage({messageToSend: options.messageToSend}, cb);
+
 
         options.messageToSend.text = '<pre>Choix modifié</pre>';
         return launchReturnMessage({messageToSend: options.messageToSend}, cb);
@@ -431,18 +441,14 @@ module.exports = {
             function onFind(err, choiceFinded){
                 if(err) return callback(err);
 
-                var messageToSend = {
-                    text: '<pre>Ce choix a été supprimé</pre>',
-                    parse_mode: 'HTML',
-                    chat_id: options.chat.id
-                };
+                var messageToSend = 'Ce choix a été supprimé';
 
                 if(!choiceFinded)
-                    return launchReturnMessage({messageToSend: messageToSend}, callback);
+                    return showPopUp({text: messageToSend, callback_query_id: options.queryId}, callback);
 
                 var username = (typeof options.from.username === 'undefined')
                     ? options.from['first_name'] + '' + options.from['last_name']: '@'+options.from.username;
-                messageToSend.text = username+' <pre>a voté pour</pre> '+choiceFinded.name;
+                messageToSend = username+' a voté pour '+choiceFinded.name;
 
                 //On recupere l'ancien vote si il y en a un
                 return Models.vote.findOne({userId: options.from.id, chatId: options.chat.id},
@@ -450,7 +456,7 @@ module.exports = {
                         if(err) return callback(err);
 
                         if(oldVote) {
-                            messageToSend.text = username + ' <pre>Vote modifié pour </pre>'+choiceFinded.name;
+                            messageToSend = username + ' Vote modifié pour '+choiceFinded.name;
                             oldVote._choice = choiceFinded.id;
                         }else{
                             oldVote = new Models.vote({
@@ -460,10 +466,9 @@ module.exports = {
                             });
                         }
 
-                        return oldVote.save({}, function onSave(err, savedVote){
+                        return oldVote.save({}, function onSave(err){
                             if(err) return callback(err);
-                            return launchReturnMessage({messageToSend: messageToSend}, callback);
-
+                            return showPopUp({text: messageToSend, callback_query_id: options.queryId}, callback);
                         })
                     }
                 )
@@ -503,7 +508,6 @@ module.exports = {
                             var choice = choices[choicesIndex[index]];
 
                             stringText += '<pre>'+order + '. ' + choice.name+'</pre> ';
-                            debug(choice);
                             if(choice.votes.length > 0){
                                 //On parcours les votes
                                 for(var indexVote = 0; indexVote < choice.votes.length; indexVote++){
@@ -595,7 +599,7 @@ module.exports = {
 
                 var name = (typeof choice.name == 'undefined') ?  '' : choice.name;
                 var priceString = typeof choice.price == 'undefined' ? '#€' : choice.price+'€';
-                var text = index +'. '+ name + ' - ' + priceString;
+                var text = 'Votez : ' + name + ' - ' + priceString;
                 var callback_data = String(choice.ordre);
                 var obj = {text: text, callback_data: callback_data};
 
