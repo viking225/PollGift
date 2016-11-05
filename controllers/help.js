@@ -155,9 +155,6 @@ module.exports =  {
             parse_mode: 'HTML'
         };
 
-        var username = (typeof options.from.username === 'undefined')
-            ? options.from['first_name'] + '' + options.from['last_name']: '@'+options.from.username;
-
         switch (action){
             case 'noPoll':
                 messageToSend.text = '<pre>Pas de Poll disponible pour cette action</pre>';
@@ -176,6 +173,8 @@ module.exports =  {
                 messageToSend.text = '<pre>Le poll n\'est pas encore lancé! : </pre>/launch';
                 break;
             case 'launchedPoll':
+                var username = (typeof options.from.username === 'undefined')
+                    ? options.from['first_name'] + '' + options.from['last_name']: '@'+options.from.username;
                 messageToSend.text = username + ' <pre> Impossible Le poll est lancé</pre>';
                 break;
 

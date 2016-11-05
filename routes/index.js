@@ -237,7 +237,34 @@ var launchCommands = function(res, options){
                 )
             });
             break;
+        case 'detailsvote':
+            return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded){
+                if(err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function(){return res.end()});
 
+                if(!pollFinded){
+                    return Help.showMessage('noPoll', {chatId: options.chat.id}, function (err) {
+                        if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+                        return res.end()
+                    });
+                }
+
+                if(pollFinded.type != 'ready'){
+                    return Help.showMessage('buildingPoll', {chatId: options.chat.id}, function(err){
+                        if(err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function(){return res.end()});
+                        return res.end();
+                    });
+                }
+                options.poll = pollFinded;
+                return Choice.sendDetailsResult(options, function onSend(err, message){
+                    if(err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                        function(){return res.end()});
+                    return res.end();
+                })
+            });
+            break;
         case 'vote':
             return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded) {
                 if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
@@ -295,7 +322,6 @@ var launchCommands = function(res, options){
                     })
             });
             break;
-
 
         case 'results':
             return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded) {
@@ -407,7 +433,6 @@ var launchCommands = function(res, options){
             });
             break;
 
-
         case 'modifyChoiceType':
             return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded) {
                 if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
@@ -433,7 +458,6 @@ var launchCommands = function(res, options){
                 })
             });
             break;
-
 
         case 'saveAttr':
             return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded) {
@@ -462,7 +486,7 @@ var launchCommands = function(res, options){
             });
             break;
 
-        default:
+        case 'help':
             Help.sendHelpMessage(options, function onMessageSent(err, message) {
                 if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
                     function () {return res.end()});
@@ -473,6 +497,21 @@ var launchCommands = function(res, options){
                 debug('Help Message Sent');
                 return res.end();
             });
+            break;
+        case 'noRight':
+            Help.sendHelpMessage(options, function onMessageSent(err, message) {
+                if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
+                if (!message) {
+                    debug('No message sent');
+                    return res.end();
+                }
+                debug('Help Message Sent');
+                return res.end();
+            });
+            break;
+        default:
+            res.end();
             break;
     }
 };

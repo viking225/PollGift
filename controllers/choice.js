@@ -10,6 +10,7 @@ var Models = require('./../models');
 var Model = Models.choice;
 var debug = require('debug')('PollGiftBot:Choice');
 var choicesPopulate = null;
+var votesPopulate = null;
 
 var launchReturnMessage = function onCreate(options, cb){
     var messageOptions = options.messageToSend;
@@ -77,10 +78,58 @@ var sortChoices = function(a,b){
     return 0;
 };
 
+var populateUserVotes = function(choices, actualIndex, choicesIndex, callback){
+    var choice = choices[choicesIndex[actualIndex]];
+    votesPopulate = [];
+    //On recehrche tout les votes et on populate le user
+    var votes = choice.votes;
+    if(votes.length > 0){
+        for(var i=0; i<votes.length; i++){
+            var vote = votes[i];
+
+            (function (innerVote){
+                //On appelle l'api
+                Functions.callTelegramApi('getChatMember', {chat_id: innerVote.chatId, user_id: vote.userId},
+                    function onGet(err, data){
+                        if(err) return callback(err);
+                        if(data.ok == false) return callback(new Error('Error while finding user'));
+                        var populatedVote = {
+                            _id: innerVote._id,
+                            _choice: innerVote._choice,
+                            chatId: innerVote.chatId,
+                            userId: innerVote.userId,
+                            user: data.result.user
+                        };
+                        messageEvent.emit('populateChoiceUser', votes, populatedVote, function onOver(err, votes){
+                            if(err) return callback(err);
+                            //Tout les votes de ce choix ont été remplis
+                            choices[choicesIndex[actualIndex]]['votes'] = votes;
+                            if(actualIndex+1 < choicesIndex.length)
+                                populateUserVotes(choices, actualIndex+1, choicesIndex, callback);
+                            else
+                                return callback(null, choices);
+                        })
+                    }
+                )
+            })(vote);
+        }
+    }
+    else{
+        if(actualIndex+1<choicesIndex.length)
+            populateUserVotes(choices, actualIndex+1, choicesIndex, callback);
+        else
+            return callback(null, choices);
+    }
+};
+messageEvent.on('populateChoiceUser', function onPopulate(votes, vote, cb){
+    votesPopulate.push(vote);
+    if(votesPopulate.length == votes.length)
+        return cb(null, votesPopulate);
+});
+
 messageEvent.on('populate', function onPopulate(choices, choice, cb){
     choicesPopulate.push(choice);
     if(choicesPopulate.length == choices.length){
-        //On lance le callback
         return cb(null, choicesPopulate);
     }
 });
@@ -335,7 +384,6 @@ module.exports = {
                             } ;
                         }
 
-                        debug(options.messageToSend);
                         return launchReturnMessage(options,
                             function onSend(err, messageSent){
                                 if(err) return callback(err);
@@ -359,24 +407,24 @@ module.exports = {
         var commands = options.commands;
 
         /*
-        //Update l'ancien Message
-        options.messageToSend = {
-            chat_id: options.chat.id,
-            message_id: commands.dbMessage.Id,
-            reply_markup: JSON.stringify({
-                inline_keyboard: []
-            })
-        };
-        options['functionApi'] = 'editMessageReplyMarkup';
-        launchReturnMessage(options, function onSend(err, messageSent){
-            if(err) return callback(err, null);
-            if(!messageSent.ok) return callback(new Error('Update Message Failed'));
-            //on termine la requete de celui la
-            var oldMessage = commands.dbMessage;
-            oldMessage.treated = true;
-            saveNewMessage({messageToSave: new Models.message(oldMessage)}, callback);
-        });
-        */
+         //Update l'ancien Message
+         options.messageToSend = {
+         chat_id: options.chat.id,
+         message_id: commands.dbMessage.Id,
+         reply_markup: JSON.stringify({
+         inline_keyboard: []
+         })
+         };
+         options['functionApi'] = 'editMessageReplyMarkup';
+         launchReturnMessage(options, function onSend(err, messageSent){
+         if(err) return callback(err, null);
+         if(!messageSent.ok) return callback(new Error('Update Message Failed'));
+         //on termine la requete de celui la
+         var oldMessage = commands.dbMessage;
+         oldMessage.treated = true;
+         saveNewMessage({messageToSave: new Models.message(oldMessage)}, callback);
+         });
+         */
 
         //On recupere le choix
         return Model.findOne({ordre: options.data, _poll: myPoll._id},
@@ -421,6 +469,65 @@ module.exports = {
                 )
             }
         );
+    },
+    sendDetailsResult: function sendResult(options, callback){
+        var Choice =this;
+        this.init();
+
+        return Choice.getChoices({filter:{_poll: options.poll._id}, populateVote: true, chatId: options.chat.id},
+            function onGet(err, choices){
+                if(err) return callback(err);
+                if(choices.length == 0)  return callback(null, false);
+                choices.sort(sortChoices);
+
+                options.messageToSend = {
+                    chat_id: options.chat.id,
+                    reply_to_message_id: options.message.message_id,
+                    parse_mode: 'HTML'
+                } ;
+
+                var stringText = '';
+                var order = 1;
+                var choicesIndex = [];
+
+                for(var index in choices){
+                    if(choices.hasOwnProperty(index)){
+                        choicesIndex.push(index);
+                    }
+                }
+                return populateUserVotes(choices, 0, choicesIndex,
+                    function onPopulate(err, choices){
+                        if(err) return callback(err);
+                        //on parcours les votes et on construit notre texte
+                        for(var index = 0; index < choicesIndex.length; index++){
+                            var choice = choices[choicesIndex[index]];
+
+                            stringText += '<pre>'+order + '. ' + choice.name+'</pre> ';
+                            debug(choice);
+                            if(choice.votes.length > 0){
+                                //On parcours les votes
+                                for(var indexVote = 0; indexVote < choice.votes.length; indexVote++){
+                                    var vote = choice.votes[indexVote];
+                                    var username = vote.user['first_name']+' '+vote.user['last_name'];
+                                    if(typeof  vote.user['username'] !== 'undefined')
+                                        username = '@'+vote.user['username'];
+                                    stringText += username +', ';
+                                }
+                            }else
+                                stringText += 'Auncun Vote';
+                            order++;
+                        }
+                        //On envoi le message
+                        options.messageToSend.text = stringText;
+                        return launchReturnMessage(options,
+                            function onSend(err, messageSent){
+                                if(err) return callback(err);
+                                return callback(null, messageSent);
+                            });
+                    });
+            }
+        )
+
     },
     sendResults: function sendResults(options, cb){
         //On recupere les choices
@@ -586,9 +693,9 @@ module.exports = {
                                     ordre: innerChoice.ordre,
                                     name: innerChoice.name,
                                     price: innerChoice.price,
-                                    link: innerChoice.link
+                                    link: innerChoice.link,
+                                    votes: votes
                                 };
-                                populatedChoice.votes = votes;
                                 messageEvent.emit('populate', choices, populatedChoice,  callback);
                             });
 
