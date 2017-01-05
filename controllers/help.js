@@ -2,24 +2,24 @@
  * Created by Tanoh Kevin on 07/10/2016.
  */
 
-var Functions = require('../functions');
-var commandsJson = require('../config').commands;
-var EventEmitter = require('events').EventEmitter;
-var Models = require('./../models');
-var MessageModel = Models.message;
-var messageEvent = new EventEmitter();
-var debug = require('debug')('PollGiftBot:helpC');
+ var Functions = require('../functions');
+ var commandsJson = require('../config').commands;
+ var EventEmitter = require('events').EventEmitter;
+ var Models = require('./../models');
+ var MessageModel = Models.message;
+ var messageEvent = new EventEmitter();
+ var debug = require('debug')('PollGiftBot:helpC');
 
 
-messageEvent.on('messageSent', function onSend(message, callback){
+ messageEvent.on('messageSent', function onSend(message, callback){
     return callback(null, message);
 });
 
-messageEvent.on('error', function onErr(err, callback){
+ messageEvent.on('error', function onErr(err, callback){
     return callback(err);
 });
 
-var searchCommand  = function(options, cb){
+ var searchCommand  = function(options, cb){
 
     return MessageModel.findOne({Id: options.messageId, chatId: options.chatId, treated: false},
         function onFind(err, messageFound){
@@ -89,13 +89,19 @@ module.exports =  {
             messageId = message['message_id'];
             var chatId = message.chat.id;
 
-            return searchCommand({messageId: messageId, chatId: chatId, from: options.from},
-                function onExtract(err, commandFound){
-                    if(err) return callback(err);
-                    commandFound.param = options.data;
-                    return callback(null, commandFound);
-                }
-            );
+            //On verfie si ce n'est pas un bouton qui execute une commande
+            var myCommandRegex = /^executeCommand(\/.+)$/;
+            if(myCommandRegex.test(options.data)){
+                var result = myCommandRegex.exec(options.data);
+                return getCommandRegex(result[1], callback);
+            }else{
+                return searchCommand({messageId: messageId, chatId: chatId, from: options.from},
+                    function onExtract(err, commandFound){
+                        if(err) return callback(err);
+                        commandFound.param = options.data;
+                        return callback(null, commandFound);
+                    });
+            }
         }
         return callback(null, {command: 'notFound'});
     },
@@ -109,7 +115,7 @@ module.exports =  {
 
         if(options.commands.command == 'noRight'){
             var username = (typeof options.from.username === 'undefined')
-                ? options.from['first_name'] + '' + options.from['last_name']: '@'+options.from.username;
+            ? options.from['first_name'] + '' + options.from['last_name']: '@'+options.from.username;
             messageOptions.text = 'NOPE ! ' + username + '<pre>Vous n\'avez pas le droit de réaliser cette action </pre>';
         }
 
@@ -145,7 +151,7 @@ module.exports =  {
                 if(err || backMessage.ok == false) return callback(err);
                 return callback(null, backMessage);
             }
-        );
+            );
     },
     showMessage: function onShow(action, options, callback){
         var messageToSend = {
@@ -156,26 +162,26 @@ module.exports =  {
 
         switch (action){
             case 'noPoll':
-                messageToSend.text = '<pre>Pas de Poll disponible pour cette action</pre>';
-                break;
+            messageToSend.text = '<pre>Pas de Poll disponible pour cette action</pre>';
+            break;
             case 'noChoice':
-                messageToSend.text = '<pre>Veuillez ajouter plus de choix</pre>';
-                break;
+            messageToSend.text = '<pre>Veuillez ajouter plus de choix</pre>';
+            break;
             case 'pollAlready':
-                messageToSend.text = '<pre>Impossible un poll exite déja</pre>';
-                break;
+            messageToSend.text = '<pre>Impossible un poll exite déja</pre>';
+            break;
             case 'error':
-                messageToSend.text = '<pre>Une erreur interne est survenue</pre>';
-                debug('Error: '+options.command+' '+options.err);
-                break;
+            messageToSend.text = '<pre>Une erreur interne est survenue</pre>';
+            debug('Error: '+options.command+' '+options.err);
+            break;
             case 'buildingPoll':
-                messageToSend.text = '<pre>Le poll n\'est pas encore lancé! : </pre>/launch';
-                break;
+            messageToSend.text = '<pre>Le poll n\'est pas encore lancé! : </pre>/launch';
+            break;
             case 'launchedPoll':
-                var username = (typeof options.from.username === 'undefined')
-                    ? options.from['first_name'] + '' + options.from['last_name']: '@'+options.from.username;
-                messageToSend.text = username + ' <pre> Impossible Le poll est lancé</pre>';
-                break;
+            var username = (typeof options.from.username === 'undefined')
+            ? options.from['first_name'] + '' + options.from['last_name']: '@'+options.from.username;
+            messageToSend.text = username + ' <pre> Impossible Le poll est lancé</pre>';
+            break;
 
         }
 

@@ -2,17 +2,17 @@
  * Created by Tanoh Kevin on 16/10/2016.
  */
 
-var request = require('request');
-var Functions = require('../functions');
-var EventEmitter = require('events').EventEmitter;
-var messageEvent = new EventEmitter();
-var Models = require('./../models');
-var Model = Models.choice;
-var debug = require('debug')('PollGiftBot:Choice');
-var choicesPopulate = null;
-var votesPopulate = null;
+ var request = require('request');
+ var Functions = require('../functions');
+ var EventEmitter = require('events').EventEmitter;
+ var messageEvent = new EventEmitter();
+ var Models = require('./../models');
+ var Model = Models.choice;
+ var debug = require('debug')('PollGiftBot:Choice');
+ var choicesPopulate = null;
+ var votesPopulate = null;
 
-var launchReturnMessage = function onCreate(options, cb){
+ var launchReturnMessage = function onCreate(options, cb){
     var messageOptions = options.messageToSend;
     var func = 'sendMessage';
 
@@ -38,7 +38,7 @@ var showPopUp = function onShow(options, cb) {
             if(err || backMessage.ok == false) return cb(err);
             return cb(null, backMessage);
         }
-    );
+        );
 };
 
 var saveNewMessage = function onSave(options, cb){
@@ -120,7 +120,7 @@ var populateUserVotes = function(choices, actualIndex, choicesIndex, callback){
                                 return callback(null, choices);
                         })
                     }
-                )
+                    )
             })(vote);
         }
     }
@@ -219,17 +219,17 @@ module.exports = {
         if(result){
             switch (result[0]){
                 case 'name':
-                    messageText += 'Veuillez saisir le nom du cadeau';
-                    break;
+                messageText += 'Veuillez saisir le nom du cadeau';
+                break;
                 case 'link':
-                    messageText += 'Veuillez saisir le lien du cadeau';
-                    break;
+                messageText += 'Veuillez saisir le lien du cadeau';
+                break;
                 case 'pic':
-                    messageText += 'Veuillez envoyer la photo du cadeau';
-                    break;
+                messageText += 'Veuillez envoyer la photo du cadeau';
+                break;
                 case 'price':
-                    messageText += 'Veuillez saisir le prix (Des nombres stp fait pas tout peter)';
-                    break;
+                messageText += 'Veuillez saisir le prix (Des nombres stp fait pas tout peter)';
+                break;
             }
             messageText += '</pre>';
 
@@ -278,9 +278,9 @@ module.exports = {
                     reply_to_message_id: options.message.message_id,
                     reply_markup: JSON.stringify({
                         inline_keyboard: [
-                            [{text: 'Nom', callback_data: 'name/'+choiceFinded.ordre}],
-                            [{text: 'Prix', callback_data: 'price/'+choiceFinded.ordre}],
-                            [{text: 'Lien', callback_data: 'link/'+choiceFinded.ordre}]
+                        [{text: 'Nom', callback_data: 'name/'+choiceFinded.ordre}],
+                        [{text: 'Prix', callback_data: 'price/'+choiceFinded.ordre}],
+                        [{text: 'Lien', callback_data: 'link/'+choiceFinded.ordre}]
                         ],
                         one_time_keyboard: true
                     })
@@ -326,7 +326,7 @@ module.exports = {
         return Model.find({_poll: myPoll._id}, function onFind(err, choices){
             if(err) return callback(err);
 
-            return Choice.constructKeyboard({choices: choices}, function onBuild(err, keyboards){
+            return Choice.constructKeyboard({choices: choices, chatType: options.chat.type}, function onBuild(err, keyboards){
                 if(keyboards.length > 0){
                     options.messageToSend = {
                         text: '<pre>Je vais vous aider a modifier les différents choix, cliquez sur celui a modiifer</pre>',
@@ -368,13 +368,13 @@ module.exports = {
     sendVoteInline: function onSend(options, callback){
         this.init();
         var Choice = this;
-                
+
         var myPoll = options.poll;
         return Choice.getChoices({filter:{_poll: myPoll._id}},
             function onGet(err, choices){
                 if(err) return callback(err);
 
-                return Choice.constructKeyboard({choices: choices},
+                return Choice.constructKeyboard({choices: choices, chatType: options.chat.type},
                     function onBuild(err, keyboards){
                         if(keyboards.length > 0){
                             options.messageToSend = {
@@ -406,7 +406,7 @@ module.exports = {
                                 }
                                 return saveNewMessage(options, callback);
                             }
-                        )
+                            )
                     })
             })
     },
@@ -447,7 +447,7 @@ module.exports = {
                     return showPopUp({text: messageToSend, callback_query_id: options.queryId}, callback);
 
                 var username = (typeof options.from.username === 'undefined')
-                    ? options.from['first_name'] + '' + options.from['last_name']: '@'+options.from.username;
+                ? options.from['first_name'] + '' + options.from['last_name']: '@'+options.from.username;
                 messageToSend = username+' a voté pour '+choiceFinded.name;
 
                 //On recupere l'ancien vote si il y en a un
@@ -471,9 +471,9 @@ module.exports = {
                             return showPopUp({text: messageToSend, callback_query_id: options.queryId}, callback);
                         })
                     }
-                )
+                    )
             }
-        );
+            );
     },
     sendDetailsResult: function sendResult(options, callback){
         var Choice =this;
@@ -518,7 +518,7 @@ module.exports = {
                                     stringText += username +', ';
                                 }
                             }else
-                                stringText += 'Auncun Vote';
+                            stringText += 'Auncun Vote';
                             order++;
                         }
                         //On envoi le message
@@ -530,7 +530,7 @@ module.exports = {
                             });
                     });
             }
-        )
+            )
 
     },
     sendResults: function sendResults(options, cb){
@@ -543,7 +543,7 @@ module.exports = {
                 if(choices){
                     choices.sort(sortChoices);
                 }
-                return Choice.constructKeyboard({choices: choices, mode: 'results'},
+                return Choice.constructKeyboard({choices: choices, mode: 'results', chatType: options.chat.type},
                     function onBuild(err, keyboards){
                         if(err) return cb(err);
                         if(keyboards.length > 0){
@@ -578,14 +578,20 @@ module.exports = {
                                 }
                                 return saveNewMessage(options, cb);
                             }
-                        );
+                            );
                     })
             })
     },
     constructKeyboard: function(options, callback){
         var mode = 'view';
+        var chatType = 'group';
+
         if(typeof options.mode != 'undefined')
             mode = options.mode;
+
+        if(typeof options.chatType != 'undefined')
+            chatType = options.chatType.toLowerCase();
+
 
         var choices = options.choices;
         var keyboards =[], keyboardLine = [];
@@ -625,8 +631,20 @@ module.exports = {
                 }
             }
         }
+
         if(keyboardLine.length > 0)
             keyboards.push(keyboardLine);
+
+        if(chatType ==  'private'){
+            //On ecrit des fonctions supplementaires
+            var sendButton = {
+                text: 'Send',
+                callback_data: 'executeCommand/sendToGroup'
+            }
+            keyboardLine = [];
+            keyboardLine.push(sendButton);
+            keyboards.push(keyboardLine);
+        }
 
         return callback(null, keyboards);
     },
@@ -712,8 +730,8 @@ module.exports = {
         if(typeof options.deleted == 'undefined')
             options.deleted = false;
         return Model
-            .findOne(options)
-            .exec(callback);
+        .findOne(options)
+        .exec(callback);
     },
     deleteChoice: function onLaunch(options, callback){
         this.init();
@@ -721,7 +739,7 @@ module.exports = {
         return Choice.getChoices({filter: {_poll: options.poll._id}, chatId:options.chat.id},
             function onGet(err, choices){
                 if(err) return callback(err);
-                return Choice.constructKeyboard({choices: choices, mode:'buttons'},
+                return Choice.constructKeyboard({choices: choices, mode:'buttons', chatType: options.chat.type},
                     function onBuild(err, keyboards){
                         if(err) return callback(err);
                         if(keyboards.length > 0){
