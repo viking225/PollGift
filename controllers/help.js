@@ -57,8 +57,7 @@ var getCommandRegex = function onGet(command, callback){
         var result = myRegex.exec(command);
         return callback(null, {command: result[1], param: result[2]});
     }
-
-
+    return callback(null, null);
 };
 module.exports =  {
     extractCommand: function extractCommand(options, callback){
@@ -183,7 +182,7 @@ module.exports =  {
         return Functions.callTelegramApi('sendMessage', messageToSend,
             function onSend(err, backMessage){
                 if (err) return messageEvent.emit('error', err, callback);
-                return messageEvent.emit('messageSent', backMessage, callback);
+                return messageEvent.emit('messageSent', backMessage, callback); 
             });
     }
 };

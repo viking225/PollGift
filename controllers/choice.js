@@ -368,7 +368,7 @@ module.exports = {
     sendVoteInline: function onSend(options, callback){
         this.init();
         var Choice = this;
-
+                
         var myPoll = options.poll;
         return Choice.getChoices({filter:{_poll: myPoll._id}},
             function onGet(err, choices){

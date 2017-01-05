@@ -27,7 +27,9 @@ app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
 
 if(app.get('env') =='development'){
-    app.use(HttpLogger('dev'));
+	debug(app.get('env') );
+	app.use(HttpLogger(':acTime :method :url :status :response-time ms - :res[content-length]'));
+    // app.use(HttpLogger('dev'));
 }else{
     app.use(HttpLogger(':acTime :method :url :status :response-time ms - :res[content-length]'));
 }
