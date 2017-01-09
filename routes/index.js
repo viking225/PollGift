@@ -1,6 +1,7 @@
 var express = require('express');
 var request = require('request');
 var coreConfig = require('../config').default;
+var commandsJson = require('../config').commands;
 var router = express.Router();
 var Functions = require('../functions');
 var controllers = require('../controllers');
@@ -9,15 +10,6 @@ var Poll = controllers.poll;
 var Choice = controllers.choice;
 const https = require('https');
 var debug = require('debug')('PollGiftBot:index');
-
-/* GET home page. */
-router.get('/', function(req, res, next) {
-    var requestURL = coreConfig.telegramURL + coreConfig.pathRequest + 'getMe';
-    request(requestURL, function(err, response , body){
-        if(err) return res.respond(err, response.statusCode);
-        return res.respond(body);
-    });
-});
 
 router.post('/',
     function onCommandReceived(req, res){
@@ -55,12 +47,18 @@ router.post('/',
             if(err) 
                 return Help.showMessage('error', {command: 'extract', err: error, chatId: options.chat.id},function () {return res.end()});
             if(!command){
-                debug('NO command foudn');
                 res.end();
             }
             else{
                 options.commands = command;
-                debug(options);
+
+                //On verifie selon le type de chat si on a droit aux functions
+                if(options.chat.type != 'private'){
+                    var authorisedCommands  = commandsJson['group'];
+                    var inCommand = authorisedCommands.some(x => x['Command'].toUpperCase() == command.command.toUpperCase());
+                    if(!inCommand)
+                        return res.end();
+                }
                 return launchCommands(res, options);
             }
         });
@@ -217,14 +215,6 @@ var launchCommands = function(res, options){
                         function () {return res.end()});
                         return res.end()
                 });
-            }
-
-            if(pollFinded.type != 'building'){
-                return Help.showMessage('launchedPoll', {from: options.from,chatId: options.chat.id}, function onSend(err) {
-                    if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
-                        function () {return res.end()});
-                        return res.end();
-                })
             }
 
             options.poll = pollFinded;

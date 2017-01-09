@@ -2,6 +2,7 @@
  * Created by Tanoh Kevin on 29/09/2016.
  */
  var Models = require('./../models');
+ var commandsJson = require('../config').commands;
  var Model = Models.poll;
  var EventEmitter = require('events').EventEmitter;
  var messageEvent = new EventEmitter();
@@ -130,15 +131,21 @@ var poll = {
             return launchReturnMessage(function(err, message){
                 if(err) return cb(err);
                 return cb(null, message);
-            }, {messageToSend: messageToSend})
-        })
+            }, {messageToSend: messageToSend});
+        });
+    },
+    sendToGroup: function onSend(options, cb){
+        var Poll = this;
+        Poll.init();
+        debug('in send to group');
+        return cb(null, null);
     },
     launchDeletePoll: function launchDeletePoll(options, cb){
         var Poll = this;
         Poll.init();
 
         if(!options.poll){
-            return cb(new Error('No Poll passed'))
+            return cb(new Error('No Poll passed'));
         }
         var poll = options.poll;
 
@@ -148,7 +155,7 @@ var poll = {
             [{text: 'Non', callback_data: 'N'}],
             ],
             one_time_keyboard: true
-        })
+        });
 
         var messageOptions = {
             text: '<pre>Voulez vous vraiment supprimer le poll actif ?</pre>',

@@ -121,12 +121,16 @@ module.exports =  {
 
         if(options.commands.command == 'help') {
             var message = "<pre>Bonjour je suis le PollBot voici mes commandes: </pre> ";
-            for (var index in commandsJson) {
-                if (commandsJson.hasOwnProperty(index)) {
-                    var commandArray = commandsJson[index];
+            var commands;
+            if(options.chat.type == 'private')
+                commands = commandsJson['private']
+            else
+                commands = commandsJson['group'];
 
-                    message += commandArray['Command']+' ';
-                    message += '<pre>'+commandArray['Description'] + '</pre> ';
+            for (var index in commands) {
+                if (commands.hasOwnProperty(index)) {
+                    var commandArray = commands[index];
+                    message +=  '/' + commandArray['Command']+' '+commandArray['Description']+'. ';
                 }
             }
             messageOptions.text = message;
