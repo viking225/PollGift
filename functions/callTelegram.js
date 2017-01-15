@@ -22,11 +22,17 @@ module.exports = function callTelegram(func, options, cb){
     }
     var getUrl = requestURL;
     getUrl += func;
-    request.post({url:getUrl, formData: options},
-        function optionalCallback(err, httpResponse, body) {
-            if (err) return cb(err);
-            return cb(null, JSON.parse(body));
-        });
+
+    try{
+        request.post({url:getUrl, formData: options},
+            function optionalCallback(err, httpResponse, body) {
+                if (err) 
+                    return cb(err);
+                return cb(null, JSON.parse(body));
+            });
+    }catch(e){
+        return cb(e);
+    }
 
 
 };

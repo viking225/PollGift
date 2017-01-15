@@ -2,13 +2,14 @@
  * Created by Tanoh Kevin on 29/09/2016.
  */
  var Models = require('./../models');
- var commandsJson = require('../config').commands;
  var Model = Models.poll;
  var EventEmitter = require('events').EventEmitter;
  var messageEvent = new EventEmitter();
  var Functions = require('../functions');
  var debug = require('debug')('PollGiftBot:pollC');
  var ChoiceController = null;
+ var pollsPopulate = null;
+
 
  var launchReturnMessage = function onCreate(cb, options){
     var messageOptions = options.messageToSend;
@@ -59,9 +60,89 @@ var deleteMyPoll = function deleteMyPoll(Poll, options, cb){
     });
 };
 
+var formatMessage = function(polls, cb){
+    var results = [];
+    //on parcours les polls
+    for(var index in polls){
+        if(polls.hasOwnProperty(index)){
+            var poll = polls[index];
+            var input_message_content = {
+                message_text: '<b>Votez !</b>',
+                parse_mode: 'HTML'
+            }
+
+            var reply_markup = {
+                inline_keyboard: poll.keyboards
+            }
+
+            var obj = {
+                type: 'article',
+                id: index,
+                title: poll.name,
+                description: '',
+                input_message_content: input_message_content,
+                reply_markup: reply_markup
+            }
+            results.push(obj);
+        }
+    }
+    return cb(null, results);
+
+}
+
 var poll = {
     init: function onInit(){
+        poll.ChoiceController = require('./choice');
+        pollsPopulate = null;
         return true;
+    },
+    launchUpdateMessage: function launchMessage(options, cb){
+        var Poll = this;
+        Poll.init();
+
+        options.messageToSend = {
+            text: options.updateText,
+            parse_mode: 'HTML',
+            chat_id: options.chat.id,
+            reply_markup: JSON.stringify({
+                force_reply: true
+            })
+        };
+
+        return launchReturnMessage(function onSend(err, backMessage){
+            if(err)
+                return cb(err);
+
+            //save new message en attente
+            var messageToSave = new Models.message({
+                userId: options.from.id,
+                chatId: options.messageToSend.chat_id,
+                Id: backMessage.result['message_id'],
+                command: options.commands.command + '/'
+            });
+
+            return saveNewMessage({messageToSave: messageToSave}, cb);
+        }, options);
+
+    },
+    updatePoll: function updatePoll(options, cb){
+        var Poll = this;
+        Poll.init();
+
+        var pollToSave = new Model(options.poll);
+        return pollToSave.save({}, function onSave(err, savedPoll){
+            if(err)
+                return cb(err);
+            if(!savedPoll)
+                return (null, null);
+
+            options.messageToSend = {
+                text: 'Poll mis a jour',
+                chat_id: options.chat.id,
+                parse_mode: 'HTML'
+            }
+            return launchReturnMessage(cb, options);
+        });
     },
     createPoll: function createPoll(options, cb) {
         var Poll = this;
@@ -134,12 +215,6 @@ var poll = {
             }, {messageToSend: messageToSend});
         });
     },
-    sendToGroup: function onSend(options, cb){
-        var Poll = this;
-        Poll.init();
-        debug('in send to group');
-        return cb(null, null);
-    },
     launchDeletePoll: function launchDeletePoll(options, cb){
         var Poll = this;
         Poll.init();
@@ -181,6 +256,94 @@ var poll = {
         return Model
         .findOne(options)
         .exec(callback);
+    },
+    getPolls: function(options, cb){
+        var Poll = this;
+        Poll.init();
+
+        var populate = false;
+        if(typeof options.populate != 'undefined')
+            populate = options.populate;
+        return Model.find(options.filter, function onFind(err, polls){
+            if(err)
+                return cb(err);
+
+            if(polls[0] != null){
+                if(!populate)
+                    return cb(null, polls);
+
+                pollsPopulate = [];
+                for(var index in polls){
+                    if(polls.hasOwnProperty(index)){
+                        var poll = polls[index];
+
+                        (function (innerPoll){
+                            //On recherche les choix pour ce poll sans populate les vols
+                            Poll.ChoiceController.getChoices({filter:{_poll: poll._id}}, function onFind(err, choices){
+                                if(err)
+                                    return cb(err);
+                                var populatedPoll = {
+                                    _id: innerPoll._id,
+                                    type: innerPoll.type,
+                                    name: innerPoll.name,
+                                    userId: innerPoll.userId,
+                                    birthday: innerPoll.birthday,
+                                    choices: choices
+                                }
+
+                                Poll.populatePoll(polls.length, populatedPoll, cb);
+                            })
+                        })(poll);
+                    }
+                }
+            }else
+                return cb(null, null);
+        })
+    },
+    populatePoll: function onPopulate(pollsLength, poll, callback){
+        pollsPopulate.push(poll);
+        if(pollsPopulate.length == pollsLength)
+            return callback(null, pollsPopulate);
+    },
+    formatAnswerQuery: function onFormat(options, cb){
+    var Poll = this;
+        Poll.init()
+        var polls = options.polls;
+        var inlinePolls = [];
+
+        pollsPopulate = [];
+        for(var index in polls){
+            if(polls.hasOwnProperty(index)){
+                var poll = polls[index];
+
+                (function (innerPoll){
+                    //On rempli chaque poll avec les choix possibles
+                    Poll.ChoiceController.constructKeyboard({choices: innerPoll.choices, chatType: 'private', sendName: innerPoll.name}, 
+                        function onBuild(err, keyboards){
+                            if(err)
+                                return cb(err);
+                            var populatePoll = {
+                                _id: innerPoll._id,
+                                type: innerPoll.type,
+                                name: innerPoll.name,
+                                userId: innerPoll.userId,
+                                birthday: innerPoll.birthday,
+                                choices: innerPoll.choices,
+                                keyboards: keyboards
+                            }
+
+                            Poll.populatePoll(polls.length, populatePoll, function onMerge(err, pollsPopulate){
+                                if(err)
+                                    return cb(err);
+                                debug('merged');
+                                formatMessage(pollsPopulate, cb);
+                            });
+                        })
+
+                })(poll);
+
+            }
+        }
     }
 };
 

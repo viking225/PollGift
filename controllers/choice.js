@@ -16,8 +16,6 @@
     var messageOptions = options.messageToSend;
     var func = 'sendMessage';
 
-    //console.log(messageOptions);
-
     if(typeof options['functionApi'] != "undefined" ) {
         func = options['functionApi'];
         options['functionsApi'] = null;
@@ -376,9 +374,10 @@ module.exports = {
 
                 return Choice.constructKeyboard({choices: choices, chatType: options.chat.type},
                     function onBuild(err, keyboards){
+                        options.functionApi = 'editMessageText';
                         if(keyboards.length > 0){
                             options.messageToSend = {
-                                text: '<pre>Faites votre choix</pre>',
+                                text: '<b>Votez</b>',
                                 parse_mode: 'HTML',
                                 chat_id: options.chat.id,
                                 reply_markup: JSON.stringify({
@@ -387,12 +386,13 @@ module.exports = {
                             } ;
                         }else{
                             options.messageToSend = {
-                                text: '<pre>Veuillez ajouter plus de choix</pre>',
+                                text: '<b>Veuillez ajouter plus de choix</b>',
                                 chat_id: options.chat.id,
-                                reply_to_message_id: options.message.message_id,
                                 parse_mode: 'HTML'
                             } ;
                         }
+                        options.messageToSend.message_id = options.message.message_id;
+
 
                         return launchReturnMessage(options,
                             function onSend(err, messageSent){
@@ -401,14 +401,13 @@ module.exports = {
                                     options.messageToSave = new Models.message({
                                         chatId: messageSent.result.chat.id,
                                         Id: messageSent.result['message_id'],
-                                        command: 'voteChoice'
+                                        command: 'voteChoice/' + myPoll._id
                                     });
                                 }
                                 return saveNewMessage(options, callback);
-                            }
-                            )
-                    })
-            })
+                            });
+                    });
+            });
     },
     saveVoteChoice: function onSave(options, callback){
         this.init();
@@ -637,13 +636,18 @@ module.exports = {
 
         if(chatType ==  'private'){
             //On ecrit des fonctions supplementaires
-            var sendButton = {
-                text: 'Send',
-                callback_data: 'executeCommand/sendToGroup'
+
+debug(options['sendName']);
+            if(typeof options['sendName'] != 'undefined'){
+                var sendButton = {
+                    text: 'Send',
+                    switch_inline_query: options['sendName']
+                }
+                keyboardLine = [];
+                keyboardLine.push(sendButton);
             }
-            keyboardLine = [];
-            keyboardLine.push(sendButton);
-            keyboards.push(keyboardLine);
+            if(keyboardLine.length > 0)
+                keyboards.push(keyboardLine);
         }
 
         return callback(null, keyboards);
@@ -705,7 +709,7 @@ module.exports = {
                     var choice = choices[index];
                     //Launch populate
                     (function (innerChoice){
-                        Models.vote.find({chatId: options.chatId, _choice: innerChoice._id},
+                        Models.vote.find({_choice: innerChoice._id},
                             function onFind(err, votes){
                                 if(err) return callback(err);
                                 //Manual copy of data

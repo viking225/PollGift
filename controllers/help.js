@@ -51,7 +51,7 @@
 };
 
 var getCommandRegex = function onGet(command, callback){
-    var myRegex = /\/([^.@]+)(.*)$/;
+    var myRegex = /\/([^.@\/]+)(?:[^\/]*)\/*([^.@\/]*)$/;
 
     if(myRegex.test(command)){
         var result = myRegex.exec(command);
@@ -147,15 +147,14 @@ module.exports =  {
         var message = 'Pas de lien';
         var callBackOptions = {
             text: message,
-            callback_query_id:  options.queryId
+            callback_query_id:  JSON.stringify(options.queryId)
         };
 
         return Functions.callTelegramApi('answerCallbackQuery', callBackOptions,
             function onSend(err, backMessage){
                 if(err || backMessage.ok == false) return callback(err);
                 return callback(null, backMessage);
-            }
-            );
+            });
     },
     showMessage: function onShow(action, options, callback){
         var messageToSend = {
@@ -193,6 +192,20 @@ module.exports =  {
             function onSend(err, backMessage){
                 if (err) return messageEvent.emit('error', err, callback);
                 return messageEvent.emit('messageSent', backMessage, callback); 
+            });
+    },
+    answerInlineQuery: function sendAnswer(options, callback){
+        var answerQuery = {
+            inline_query_id: options.inline_query_id,
+            results: JSON.stringify(options.pollInline)
+        }
+        debug(answerQuery);
+        return Functions.callTelegramApi('answerInlineQuery', answerQuery,
+            function onSend(err, backMessage){
+                debug(backMessage);
+                if(err|| backMessage.ok == false)
+                    return callback(err);
+                return callback(null, backMessage);
             });
     }
 };

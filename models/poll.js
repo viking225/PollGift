@@ -9,7 +9,7 @@ var pollSchema = new Schema({
         type: String,
         required: true,
         default: 'building'
-    },
+    }, 
     name: {
         type: String
     },
