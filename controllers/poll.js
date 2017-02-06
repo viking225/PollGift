@@ -62,12 +62,28 @@ var deleteMyPoll = function deleteMyPoll(Poll, options, cb){
 
 var formatMessage = function(polls, cb){
     var results = [];
+    var compteur = 0;
+
+    //Le sticker de creattion de nouveau messaeg
+    compteur ++;
+    var obj = {
+        type: 'sticker',
+        id: compteur+'',
+        sticker_file_id: 'BQADBAADaAADsZotA08J7aKo7J64Ag',
+        input_message_content: {
+            message_text: '/createpoll'
+        }
+    }
+    results.push(obj);
+
     //on parcours les polls
     for(var index in polls){
         if(polls.hasOwnProperty(index)){
+            compteur++;
             var poll = polls[index];
+            var question_text = poll.name.length > 1 ? poll.name : 'Votez !';
             var input_message_content = {
-                message_text: '<b>Votez !</b>',
+                message_text: '<b>'+ question_text +'</b>',
                 parse_mode: 'HTML'
             }
 
@@ -77,7 +93,7 @@ var formatMessage = function(polls, cb){
 
             var obj = {
                 type: 'article',
-                id: index,
+                id: compteur+'',
                 title: poll.name,
                 description: '',
                 input_message_content: input_message_content,
@@ -87,7 +103,6 @@ var formatMessage = function(polls, cb){
         }
     }
     return cb(null, results);
-
 }
 
 var poll = {
@@ -123,7 +138,6 @@ var poll = {
 
             return saveNewMessage({messageToSave: messageToSave}, cb);
         }, options);
-
     },
     updatePoll: function updatePoll(options, cb){
         var Poll = this;
@@ -136,6 +150,9 @@ var poll = {
             if(!savedPoll)
                 return (null, null);
 
+            if(options.bFirstTime)
+                return cb(null, savedPoll);
+            
             options.messageToSend = {
                 text: 'Poll mis a jour',
                 chat_id: options.chat.id,
@@ -168,14 +185,7 @@ var poll = {
                 newPoll.save({}, function onSave(err, savedPoll){
                     if(err)
                         return cb(err);
-
-                    options.poll = savedPoll;
-                    options.messageToSend = {
-                        text: '<pre>Poll just created, add Options</pre>',
-                        chat_id: options.chat.id,
-                        parse_mode: 'HTML'
-                    } ;
-                    return launchReturnMessage(cb, options);
+                    return cb(null, savedPoll);
                 });
             }
             );
@@ -312,6 +322,9 @@ var poll = {
         var inlinePolls = [];
 
         pollsPopulate = [];
+        if(!polls)
+            return formatMessage(polls, cb);
+
         for(var index in polls){
             if(polls.hasOwnProperty(index)){
                 var poll = polls[index];

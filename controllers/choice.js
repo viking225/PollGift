@@ -415,26 +415,6 @@ module.exports = {
         var myPoll = options.poll;
         var commands = options.commands;
 
-        /*
-         //Update l'ancien Message
-         options.messageToSend = {
-         chat_id: options.chat.id,
-         message_id: commands.dbMessage.Id,
-         reply_markup: JSON.stringify({
-         inline_keyboard: []
-         })
-         };
-         options['functionApi'] = 'editMessageReplyMarkup';
-         launchReturnMessage(options, function onSend(err, messageSent){
-         if(err) return callback(err, null);
-         if(!messageSent.ok) return callback(new Error('Update Message Failed'));
-         //on termine la requete de celui la
-         var oldMessage = commands.dbMessage;
-         oldMessage.treated = true;
-         saveNewMessage({messageToSave: new Models.message(oldMessage)}, callback);
-         });
-         */
-
         //On recupere le choix
         return Model.findOne({ordre: options.data, _poll: myPoll._id},
             function onFind(err, choiceFinded){
@@ -530,12 +510,40 @@ module.exports = {
                     });
             }
             )
+    },
+    sendOptionsKeyboard: function sendOPtions(options, callback){
+        var Choice = this;
+        return Choice.getChoices({filter:{_poll: options.poll.id}}, 
+            function onGet(err, choices){
+                if(err)
+                    return callback(err);
 
+                return Choice.constructKeyboard({choices: choices, mode: 'options', chatType: 'private', poll_id: options.poll.id}, 
+                    function onConstruct(err, keyboards){
+                        if(err)
+                            return callback(err);
+
+                        options.messageToSend ={
+                            text: '<b>' + options.poll.name + '</b>',
+                            parse_mode: 'HTML',
+                            chat_id: options.chat.id,
+                            reply_markup: JSON.stringify({
+                                inline_keyboard: keyboards
+                            })
+                        }
+
+                        return launchReturnMessage(options, function onSend(err, backMessage){
+                            if(err)
+                                return callback(err);
+                            return callback(null, backMessage);
+                        })
+                    })
+            })
     },
     sendResults: function sendResults(options, cb){
         //On recupere les choices
         var Choice = this;
-        return Choice.getChoices({filter:{_poll: options.poll._id}, populateVote: true, chatId: options.chat.id},
+        return Choice.getChoices({filter:{_poll: options.poll._id}, populateVote: true},
             function onGet(err, choices){
                 if(err) return cb(err);
 
@@ -593,10 +601,14 @@ module.exports = {
 
 
         var choices = options.choices;
+
+        debug(choices);
+
         var keyboards =[], keyboardLine = [];
         var nCol = Math.round(choices.length/5);
         var colActu = 1;
         var index = 1;
+        var poll_id = options.poll_id;
 
         for(var prop2 in choices){
             if(choices.hasOwnProperty(prop2)){
@@ -605,19 +617,26 @@ module.exports = {
                 var name = (typeof choice.name == 'undefined') ?  '' : choice.name;
                 var priceString = typeof choice.price == 'undefined' ? '#€' : choice.price+'€';
                 var text = 'Votez : ' + name + ' - ' + priceString;
-                var callback_data = String(choice.ordre);
+                var callback_data = 'executeCommand/voteChoice/' + String(choice.ordre);
                 var obj = {text: text, callback_data: callback_data};
 
-                if(mode == 'results'){
-                    var votes = ' - ' + choice.votes.length +' Votes';
-                    obj.text = index +'. '+ name + votes;
-                    obj.callback_data = 'openLink';
-                    if (typeof choice.link != 'undefined'){
-                        obj.url = choice.link;
-                    }
-                }else if(mode == 'buttons'){
-                    obj = {};
-                    obj.text = choice.ordre +'/'+name;
+                if(mode == 'options'){
+                    //modification
+                    keyboardLine.push({
+                        text: '✍🏿',
+                        callback_data: 'executeCommand/sendModifyInlineChoice/' + choice.ordre
+                    });
+
+                    keyboardLine.push({
+                        text: '❌',
+                        callback_data: 'executeCommand/deleteChoiceReal/' + choice .ordre
+                    });
+                }else{
+                    keyboardLine.push({
+                        text: '👾',
+                        callback_data: 'openLink',
+                        url: choice.link
+                    });
                 }
 
                 keyboardLine.push(obj);
@@ -636,16 +655,33 @@ module.exports = {
 
         if(chatType ==  'private'){
             //On ecrit des fonctions supplementaires
+            keyboardLine = [];
 
-debug(options['sendName']);
+            //Bontoun d'ajout de choix
+            var addButton = {
+                text: 'Add choice',
+                callback_data: 'executeCommand/add/'+poll_id
+            };
+            keyboardLine.push(addButton);
+
+            var setNameButton = {
+                text: 'Change Question',
+                callback_data: 'executeCommand/setname/'+poll_id
+            }
+            keyboardLine.push(setNameButton);
+
+            //push options buttons
+            keyboards.push(keyboardLine);
+            keyboardLine = [];
+
             if(typeof options['sendName'] != 'undefined'){
                 var sendButton = {
                     text: 'Send',
                     switch_inline_query: options['sendName']
                 }
-                keyboardLine = [];
                 keyboardLine.push(sendButton);
             }
+
             if(keyboardLine.length > 0)
                 keyboards.push(keyboardLine);
         }

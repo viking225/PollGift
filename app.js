@@ -7,6 +7,7 @@ var bodyParser = require('body-parser');
 var mongoose = require('mongoose');
 var configDb = require('./config').database;
 var debug = require('debug')('PollGiftBot:app');
+var uri = require('mongodb-uri');
 
 //Routes elements
 var routes = require('./routes/index');
@@ -22,10 +23,6 @@ HttpLogger.token('acTime', function(){
 
 var app = express();
 
-// view engine setup
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'jade');
-
 if(app.get('env') =='development'){
 	debug(app.get('env') );
 	app.use(HttpLogger(':acTime :method :url :status :response-time ms - :res[content-length]'));
@@ -35,7 +32,7 @@ if(app.get('env') =='development'){
 }
 
 //Connection with database
-mongoose.connect(configDb.uri);
+mongoose.connect(configDb.uri, configDb.options);
 var conn = mongoose.connection;
 
 app.use(bodyParser.json());
@@ -46,8 +43,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/', routes);
 
 //On launch
-conn.on('error', function onError(){
+conn.on('error', function onError(err){
     debug('Connection With Db Failed');
+    throw (err);
 });
 
 conn.once('open', function onOpen(){
