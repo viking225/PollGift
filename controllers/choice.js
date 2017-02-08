@@ -21,6 +21,8 @@
         options['functionsApi'] = null;
     }
 
+    debug(options);
+    
     return Functions.callTelegramApi(func, messageOptions,
         function onSend(err, backMessage){
             if (err) return cb(err);
@@ -33,10 +35,11 @@
 var showPopUp = function onShow(options, cb) {
     return Functions.callTelegramApi('answerCallbackQuery', options,
         function onSend(err, backMessage){
-            if(err || backMessage.ok == false) return cb(err);
+            if(err || backMessage.ok == false) 
+                return cb(err);
             return cb(null, backMessage);
         }
-        );
+    );
 };
 
 var saveNewMessage = function onSave(options, cb){
@@ -513,12 +516,17 @@ module.exports = {
     },
     sendOptionsKeyboard: function sendOPtions(options, callback){
         var Choice = this;
-        return Choice.getChoices({filter:{_poll: options.poll.id}}, 
+        return Choice.getChoices({filter:{_poll: options.poll.id, deleted: 0}}, 
             function onGet(err, choices){
                 if(err)
                     return callback(err);
 
-                return Choice.constructKeyboard({choices: choices, mode: 'options', chatType: 'private', poll_id: options.poll.id}, 
+                var updateMessage = false;
+                if(typeof options.update_message != "undefined"){
+                    updateMessage = options.update_message;
+                }
+
+                return Choice.constructKeyboard({choices: choices, mode: 'options', chatType: 'private', poll_id: options.poll.id, sendName: options.poll.name}, 
                     function onConstruct(err, keyboards){
                         if(err)
                             return callback(err);
@@ -531,7 +539,13 @@ module.exports = {
                                 inline_keyboard: keyboards
                             })
                         }
+                        
+                        debug(updateMessage);
 
+                        if(updateMessage){
+                            options.messageToSend.message_id = updateMessage;
+                            options['functionApi'] = 'editMessageText';
+                        }
                         return launchReturnMessage(options, function onSend(err, backMessage){
                             if(err)
                                 return callback(err);
@@ -624,12 +638,12 @@ module.exports = {
                     //modification
                     keyboardLine.push({
                         text: '✍🏿',
-                        callback_data: 'executeCommand/sendModifyInlineChoice/' + choice.ordre
+                        callback_data: 'executeCommand/sendModifyInlineChoice/'+ poll_id + '/' + choice.ordre
                     });
 
                     keyboardLine.push({
                         text: '❌',
-                        callback_data: 'executeCommand/deleteChoiceReal/' + choice .ordre
+                        callback_data: 'executeCommand/deleteChoiceReal/'+ poll_id + '/' + choice .ordre
                     });
                 }else{
                     keyboardLine.push({
@@ -674,6 +688,15 @@ module.exports = {
             keyboards.push(keyboardLine);
             keyboardLine = [];
 
+            //Bouton de suppression
+            keyboardLine.push({
+                text: 'Delete Poll',
+                callback_data: 'executeCommand/delete/'+poll_id
+            });
+
+            keyboards.push(keyboardLine);
+            keyboardLine = [];
+
             if(typeof options['sendName'] != 'undefined'){
                 var sendButton = {
                     text: 'Send',
@@ -694,23 +717,9 @@ module.exports = {
 
         var myPoll = options.poll;
 
-        //Modification Impossible
-        if(myPoll.userId != options.message.from.id){
-            options.messageToSend = {
-                text: '<pre>Vous navez pas le droit de modifier ce Poll</pre>',
-                chat_id: options.chat.id,
-                parse_mode: 'HTML'
-            } ;
-
-            return launchReturnMessage(options,
-                function onMessageSend(err, messageSent){
-                    if(err) return callback(err);
-                    return callback(null, null);
-                })
-        }
-
         return Model.count({_poll: myPoll._id}, function onCount(err, count){
-            if(err) return callback(err);
+            if(err) 
+                return callback(err);
             count++;
             var newChoice = new Model({
                 ordre: count,
@@ -720,17 +729,13 @@ module.exports = {
             return newChoice.save({},function onSave(err, choiceSaved){
                 if(err) return callback(err);
 
-                options.messageToSend = {
-                    text: '<pre>Choice N° ' + count + ' added</pre>',
-                    chat_id: options.chat.id,
-                    parse_mode: 'HTML'
-                } ;
-
-                return launchReturnMessage(options,
+                return showPopUp({text: 'Choice N° ' + count + ' added', callback_query_id: options.queryId}, 
                     function onMessageSend(err, messageSent){
-                        if(err) return callback(err);
+                        if(err)
+                            return callback(err)
                         return callback(null, choiceSaved);
-                    })
+                    }
+                );
             });
         });
     },
@@ -822,31 +827,21 @@ module.exports = {
         var Choice = this;
         var commands = options.commands;
 
-        //On met le message comme traiter
-        var oldMessage = commands.dbMessage;
-        oldMessage.treated = true;
-        saveNewMessage({messageToSave: new Models.message(oldMessage)}, callback);
-
         //On extrait l'ordre
-        var params = commands.param[0].match(/([^\/]+)/g);
-        return Choice.getChoice({ordre: params[0], _poll: options.poll._id},
+        return Choice.getChoice({ordre: commands.param2, _poll: options.poll._id},
             function onFind(err, choice){
                 if(err) return callback(err);
-                var messageToSend = {
-                    text: '<pre>Pas de choix a supprimer</pre>',
-                    chat_id: options.chat.id,
-                    reply_to_message_id: options.message.message_id,
-                    parse_mode: 'HTML'
-                };
-                if(!choice) return launchReturnMessage({messageToSend: messageToSend}, callback);
+
+                if(!choice) 
+                    return showPopUp({text: "Pas de choix a supprimer", callback_query_id: options.queryId}, callback);
 
                 //Launch suppression
                 choice.deleted = true;
                 var updateChoice = new Model(choice);
                 return updateChoice.save({}, function onSave(err, choiceSaved){
-                    if(err) return callback(err);
-                    messageToSend.text = '<pre>Choix supprimé</pre>';
-                    return launchReturnMessage({messageToSend: messageToSend}, callback);
+                    if(err) 
+                        return callback(err);
+                    return showPopUp({text: "Choix n°" + commands.param2 + " supprimé", callback_query_id: options.queryId}, callback);
                 })
             })
     }

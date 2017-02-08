@@ -27,6 +27,7 @@
             if(!messageFound) return cb(null, {command: 'notFound'});
 
             if(typeof messageFound.userId != 'undefined') {
+                debug(messageFound);
                 if (messageFound.userId != options.from.id)
                     return cb(null, {command: 'noRight'});
             }
@@ -51,11 +52,12 @@
 };
 
 var getCommandRegex = function onGet(command, callback){
-    var myRegex = /\/([^.@\/]+)(?:[^\/]*)\/*([^.@\/]*)$/;
+    var myRegex = new RegExp('([^.@\/]+)','g');
 
     if(myRegex.test(command)){
-        var result = myRegex.exec(command);
-        return callback(null, {command: result[1], param: result[2]});
+        var result = command.match(myRegex);
+        debug(result);
+        return callback(null, {command: result[0], param: result[1], param2: result[2]});
     }
     return callback(null, null);
 };

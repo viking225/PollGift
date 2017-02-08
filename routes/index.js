@@ -83,9 +83,12 @@ router.post('/',
             if(err) 
                 return Help.showMessage('error', {command: 'extract', err: error, chatId: options.chat.id},function () {return res.end()});
             if(!command){
+                debug('no command');
                 res.end();
             }
             else{
+                debug(command);
+
                 options.commands = command;
 
                 //On verifie selon le type de chat si on a droit aux functions
@@ -95,7 +98,6 @@ router.post('/',
                     if(!inCommand)
                         return res.end();
                 }
-                debug(options);
                 return launchCommands(res, options);
             }
         });
@@ -109,7 +111,13 @@ var launchCommands = function(res, options){
 
     switch (commands.command) {
         case 'delete':
-        return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded) {
+
+        if(!commands.param)
+            return res.end();
+
+        var poll_id = commands.param;
+
+        return Poll.getPoll({_id: poll_id}, function onGetPoll(err, pollFinded) {
             if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
                 function () {return res.end()});
                 if(!pollFinded){
@@ -184,10 +192,11 @@ var launchCommands = function(res, options){
 
         var poll_id = commands.param;
         return Poll.getPoll({_id: poll_id}, function onGetPoll(err, pollFinded) {
-            if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
-                function () {return res.end()});
+            if (err) 
+                return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                    function () {return res.end()});
 
-                options.poll = pollFinded;
+            options.poll = pollFinded;
             if (!pollFinded) {
                 return Help.showMessage('noPoll',{chatId: options.chat.id}, function onSend(err) {
                     if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
@@ -207,7 +216,14 @@ var launchCommands = function(res, options){
                 if (err)
                     return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
                         function () {return res.end()});
-                return res.end();
+
+                    options.update_message = options.message.message_id;
+                    return Choice.sendOptionsKeyboard(options, function onSend(err, message){
+                        if(err)
+                            return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                                function () {return res.end()});
+                        return res.end();
+                    })
             });
         });
         break;
@@ -274,8 +290,7 @@ var launchCommands = function(res, options){
                 options.poll = pollFinded;
 
                 //Check si le name etait vide
-                //if(!options.poll.name)
-                if(true)
+                if(!options.poll.name)
                     bFirstTime = true;
 
                 options.poll.name = commands.param;
@@ -285,7 +300,7 @@ var launchCommands = function(res, options){
                     if (err) 
                         return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
                             function () {return res.end()});
-                    if(true){
+                    if(bFirstTime){
                         //On affiche l'interface 
                         return Choice.sendOptionsKeyboard(options, function onSend(err, message){
                             if(err)
@@ -489,7 +504,13 @@ var launchCommands = function(res, options){
             });
         
         case 'deleteChoiceReal':
-        return Poll.getPoll({chatId: options.chat.id}, function onGetPoll(err, pollFinded){
+
+        if(!commands.param)
+            return res.end();
+
+        var poll_id = commands.param;
+
+        return Poll.getPoll({_id: poll_id}, function onGetPoll(err, pollFinded){
             if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
                 function () {return res.end()});
                 if(!pollFinded){
@@ -506,11 +527,20 @@ var launchCommands = function(res, options){
                             return res.end();
                     })
                 }
+
                 options.poll = pollFinded;
                 return Choice.deleteChoiceReal(options, function onLaunch(err){
-                    if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
-                        function () {return res.end()});
+                    if (err) 
+                        return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                            function () {return res.end()});
+
+                    options.update_message = options.message.message_id;
+                    return Choice.sendOptionsKeyboard(options, function onSend(err, message){
+                        if(err)
+                            return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
+                                function () {return res.end()});
                         return res.end();
+                    })
                 })
             });
         break;
