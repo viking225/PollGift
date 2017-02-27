@@ -3,6 +3,7 @@
  */
  var Models = require('./../models');
  var Model = Models.poll;
+ var mongoose = require('mongoose');
  var EventEmitter = require('events').EventEmitter;
  var messageEvent = new EventEmitter();
  var Functions = require('../functions');
@@ -13,10 +14,16 @@
 
  var launchReturnMessage = function onCreate(cb, options){
     var messageOptions = options.messageToSend;
+    var func = 'sendMessage';
 
-    return Functions.callTelegramApi('sendMessage', messageOptions,
+    if(typeof options['functionApi'] != "undefined" ) {
+        func = options['functionApi'];
+    }    
+
+    return Functions.callTelegramApi(func, messageOptions,
         function onSend(err, backMessage){
-            if (err) return cb(err);
+            if (err) 
+                return cb(err);
             if(backMessage.ok == false)
                 return cb(new Error(backMessage.description));
             return cb(null, backMessage);
@@ -118,25 +125,39 @@ var poll = {
         options.messageToSend = {
             text: options.updateText,
             parse_mode: 'HTML',
-            chat_id: options.chat.id,
             reply_markup: JSON.stringify({
-                force_reply: true
+                inline_keyboard: [[]],
             })
-        };
+        };            
+
+        if(options.inline_message_id){
+            options.messageToSend.inline_message_id = options.inline_message_id;
+            options.functionApi = 'editMessageText';
+        }
+        else if(options.chat){
+            options.messageToSend.chat_id = options.chat.id;
+        }
 
         return launchReturnMessage(function onSend(err, backMessage){
             if(err)
                 return cb(err);
 
-            //save new message en attente
-            var messageToSave = new Models.message({
+            var idMessage = mongoose.Types.ObjectId();
+            var params = options.commands.param.join('/');
+            var messageObj = {
                 userId: options.from.id,
-                chatId: options.messageToSend.chat_id,
-                Id: backMessage.result['message_id'],
-                command: options.commands.command + '/'
-            });
+                Id: idMessage,
+                command: options.commands.command + '/'+params+'/',
+                nextAction: true
+            };
 
+            if(options.chat){
+                messageObj.chatId = options.messageToSend.chat_id;
+            }
+
+            var messageToSave = new Models.message(messageObj);
             return saveNewMessage({messageToSave: messageToSave}, cb);
+
         }, options);
     },
     updatePoll: function updatePoll(options, cb){
@@ -148,17 +169,8 @@ var poll = {
             if(err)
                 return cb(err);
             if(!savedPoll)
-                return (null, null);
-
-            if(options.bFirstTime)
-                return cb(null, savedPoll);
-            
-            options.messageToSend = {
-                text: 'Poll mis a jour',
-                chat_id: options.chat.id,
-                parse_mode: 'HTML'
-            }
-            return launchReturnMessage(cb, options);
+                return cb(null, null);
+            return cb(null, savedPoll);
         });
     },
     createPoll: function createPoll(options, cb) {
@@ -289,7 +301,7 @@ var poll = {
 
                         (function (innerPoll){
                             //On recherche les choix pour ce poll sans populate les vols
-                            Poll.ChoiceController.getChoices({filter:{_poll: poll._id}}, function onFind(err, choices){
+                            Poll.ChoiceController.getChoices({filter:{_poll: poll._id, deleted: false}}, function onFind(err, choices){
                                 if(err)
                                     return cb(err);
                                 var populatedPoll = {
@@ -320,18 +332,18 @@ var poll = {
         Poll.init()
         var polls = options.polls;
         var inlinePolls = [];
-
         pollsPopulate = [];
         if(!polls)
             return formatMessage(polls, cb);
-
+        
         for(var index in polls){
             if(polls.hasOwnProperty(index)){
                 var poll = polls[index];
 
                 (function (innerPoll){
+                    debug(innerPoll.choices);
                     //On rempli chaque poll avec les choix possibles
-                    Poll.ChoiceController.constructKeyboard({choices: innerPoll.choices, chatType: 'private', sendName: innerPoll.name}, 
+                    Poll.ChoiceController.constructKeyboard({choices: innerPoll.choices, poll_type: innerPoll.type, sendName: innerPoll.name, poll_id: innerPoll._id}, 
                         function onBuild(err, keyboards){
                             if(err)
                                 return cb(err);
@@ -348,7 +360,6 @@ var poll = {
                             Poll.populatePoll(polls.length, populatePoll, function onMerge(err, pollsPopulate){
                                 if(err)
                                     return cb(err);
-                                debug('merged');
                                 formatMessage(pollsPopulate, cb);
                             });
                         })

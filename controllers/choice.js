@@ -2,6 +2,7 @@
  * Created by Tanoh Kevin on 16/10/2016.
  */
 
+var mongoose = require('mongoose');
  var request = require('request');
  var Functions = require('../functions');
  var EventEmitter = require('events').EventEmitter;
@@ -18,16 +19,15 @@
 
     if(typeof options['functionApi'] != "undefined" ) {
         func = options['functionApi'];
-        options['functionsApi'] = null;
+        options['functionApi'] = null;
     }
-
-    debug(options);
     
     return Functions.callTelegramApi(func, messageOptions,
         function onSend(err, backMessage){
-            if (err) return cb(err);
-            if(backMessage.ok == false)
-                return cb(new Error(backMessage.description));
+                        debug(backMessage);
+
+            if (err || backMessage.ok == false) 
+                return cb(err);
             return cb(null, backMessage);
         });
 };
@@ -51,33 +51,16 @@ var saveNewMessage = function onSave(options, cb){
     })
 };
 
-var sendUnknownChoice = function(options, callback){
-    options.messageToSend = {
-        text: '<pre>Choix Non existant</pre>',
-        chat_id: options.chat.id,
-        parse_mode: 'HTML'
-    } ;
-
-    return launchReturnMessage(options,
-        function onMessageSend(err, messageSent){
-            if(err) return callback(err);
-            return callback(null, messageSent);
-        })
-};
-
 var launchSaveChoice = function(options, cb){
     //Save
 
-    options['choiceFinded'][options.commands.param[0]] = options.text;
+    options['choiceFinded'][options.commands.param[2]] = options.text;
     var newChoice = new Model(options['choiceFinded']);
 
     return newChoice.save({}, function onSaveChoice(err, choiceSaved){
         if(err || !choiceSaved)
-            return launchReturnMessage({messageToSend: options.messageToSend}, cb);
-
-
-        options.messageToSend.text = '<pre>Choix modifié</pre>';
-        return launchReturnMessage({messageToSend: options.messageToSend}, cb);
+            return cb(new Error('Error while saving choice'));
+        return cb(null, choiceSaved);
     })
 };
 
@@ -154,71 +137,56 @@ module.exports = {
         this.init();
         var commands = options.commands;
 
-        //Mettre le message comme traiter
-        var oldMessage = commands.dbMessage;
-        oldMessage.treated = true;
-        saveNewMessage({messageToSave: new Models.message(oldMessage)}, cb);
-
         return Model.findOne({ordre: commands.param[1], _poll: options.poll._id},
             function onFind(err, choiceFinded){
-                if(err) return cb(err);
-                if(!choiceFinded) return cb(null, choiceFinded);
+                if(err) 
+                    return cb(err);
+                
+                if(!choiceFinded) 
+                    return cb(null, choiceFinded);
 
                 var messageToSend = {
                     text: '<pre>Echec de la modification</pre>',
                     parse_mode: 'HTML',
-                    chat_id: options.chat.id
                 };
+
+                var functionApi = 'sendMessage';
+
+                if(options.inline_message_id){
+                    messageToSend.inline_message_id = options.inline_message_id;
+                    functionApi = 'editMessageText';
+                }else{
+                    messageToSend.chat_id = options.chat.id
+                }
 
                 //controle en amont
                 if(commands.param[0] == 'price' && !/^[\d.]+$/.test(options.message.text) ){
                     messageToSend.text = "Fuck you too :)";
-                    return launchReturnMessage({messageToSend: messageToSend}, cb);
+                    return launchReturnMessage({messageToSend: messageToSend, functionApi: functionApi}, cb);
                 }
                 if(commands.param[0] == 'link'){
                     return request.get({url:options.message.text}, function(err, httpResponse, body){
                         if(err || httpResponse.statusCode != 200){
                             messageToSend.text = 'Lien non valide !';
-                            return launchReturnMessage({messageToSend: messageToSend}, cb);
+                            return launchReturnMessage({messageToSend: messageToSend, functionApi: functionApi}, cb);
                         }
-
-                        return launchSaveChoice({choiceFinded: choiceFinded, messageToSend: messageToSend, commands: commands, text: options.message.text}, cb)
+                        return launchSaveChoice({choiceFinded: choiceFinded, messageToSend: messageToSend, commands: commands, text: commands.param[3]}, cb);
                     });
                 }else{
-                    return launchSaveChoice({choiceFinded: choiceFinded, messageToSend: messageToSend, commands: commands, text: options.message.text}, cb);
+                    return launchSaveChoice({choiceFinded: choiceFinded, messageToSend: messageToSend, commands: commands, text: commands.param[3]}, cb);
                 }
             });
         //On recupere le choice
     },
     sendModifyInlineType: function onSend(options, callback){
         this.init();
-        var commands = options.commands;
         //On extrait la commande
-        var result = options.data.match(/([^\/]+)/g);
-        var messageText = '<pre>';
-
-        //On update l'ancien message
-        options.messageToSend = {
-            chat_id: options.chat.id,
-            message_id: commands.dbMessage.Id,
-            reply_markup: JSON.stringify({
-                inline_keyboard: []
-            })
-        };
-        options['functionApi'] = 'editMessageReplyMarkup';
-
-        launchReturnMessage(options, function onSend(err, messageSent){
-            if(err) return callback(err, null);
-            if(!messageSent.ok) return callback(new Error('Update Message Failed'));
-            //on termine la requete de celui la
-            var oldMessage = commands.dbMessage;
-            oldMessage.treated = true;
-            return saveNewMessage({messageToSave: new Models.message(oldMessage)}, callback);
-        });
+        var result = options.commands.param;
+        var messageText = '';
 
         //On ecris un nouveau message
         if(result){
-            switch (result[0]){
+            switch (result[2]){
                 case 'name':
                 messageText += 'Veuillez saisir le nom du cadeau';
                 break;
@@ -232,26 +200,36 @@ module.exports = {
                 messageText += 'Veuillez saisir le prix (Des nombres stp fait pas tout peter)';
                 break;
             }
-            messageText += '</pre>';
 
             var messageToSend = {
                 text: messageText,
                 parse_mode: 'HTML',
-                chat_id: options.chat.id,
                 reply_markup: JSON.stringify({
-                    force_reply: true
+                    inline_keyboard: [[]],
                 })
             };
+            var functionApi = 'sendMessage';
+            if(options.inline_message_id){
+                messageToSend.inline_message_id = options.inline_message_id;
+                functionApi = 'editMessageText';
+            }
+            else if(options.chat){
+                messageToSend.chat_id = options.chat.id;
+            }else{
+                return callback(new Error('Failed on update'));
+            }
 
-            return launchReturnMessage({messageToSend: messageToSend}, function onSend(err, messageSent){
-                if(err) return callback(err);
-                if(!messageSent.ok) return callback(new Error('Message Failed'));
+            return launchReturnMessage({messageToSend: messageToSend, functionApi: functionApi }, function onSend(err, messageSent){
+                if(err) 
+                    return callback(err);
 
+                //On save l'entree utilistauer attendue
+                var idMessage = mongoose.Types.ObjectId();
                 var messageToSave = new Models.message({
                     userId: options.from.id,
-                    chatId: messageSent.result.chat.id,
-                    Id: messageSent.result['message_id'],
-                    command: 'saveAttr/'+result[0]+'/'+result[1]
+                    Id: idMessage,
+                    command: 'saveAttr/'+result[0]+'/'+result[1]+'/'+result[2]+'/',
+                    nextAction: true
                 });
 
                 return saveNewMessage({messageToSave: messageToSave}, callback);
@@ -265,39 +243,39 @@ module.exports = {
         var commands = options.commands;
 
         //Get choice with info
-        return Model.findOne({ordre: commands.param, _poll: options.poll._id},
+        return Model.findOne({ordre: commands.param[1], _poll: options.poll._id},
             function onFind(err, choiceFinded){
-                if(err) return callback(err);
-                if(!choiceFinded) return sendUnknownChoice(options, callback);
+                if(err) 
+                    return callback(err);
+                if(!choiceFinded) 
+                    return showPopUp({text: "Choix inconnu", callback_query_id: options.queryId}, callback);
 
                 //modify message and update info
                 options.messageToSend = {
                     text: '<pre>Que Changer ?</pre>',
                     parse_mode: 'HTML',
-                    chat_id: options.chat.id,
-                    message_id: commands.dbMessage.Id,
-                    reply_to_message_id: options.message.message_id,
                     reply_markup: JSON.stringify({
                         inline_keyboard: [
-                        [{text: 'Nom', callback_data: 'name/'+choiceFinded.ordre}],
-                        [{text: 'Prix', callback_data: 'price/'+choiceFinded.ordre}],
-                        [{text: 'Lien', callback_data: 'link/'+choiceFinded.ordre}]
+                        [{text: 'Nom', callback_data: 'executeCommand/modifyChoiceType/'+options.poll._id+'/'+choiceFinded.ordre+'/name'}],
+                        [{text: 'Prix', callback_data: 'executeCommand/modifyChoiceType/'+options.poll._id+'/'+choiceFinded.ordre+'/price'}],
+                        [{text: 'Lien', callback_data: 'executeCommand/modifyChoiceType/'+options.poll._id+'/'+choiceFinded.ordre+'/link'}]
                         ],
-                        one_time_keyboard: true
                     })
                 } ;
+
+                if(!options.inline_message_id){
+                    options.messageToSend.chat_id = options.chat.id; 
+                    options.messageToSend.message_id =  options.message.message_id;
+                }else{
+                    options.messageToSend.inline_message_id = options.inline_message_id;
+                }
 
                 options['functionApi'] = 'editMessageText';
 
                 return launchReturnMessage(options, function onSend(err, messageSent){
-                    if(err) return callback(err);
-                    if(messageSent.ok == false) return callback(new Error('No Message Sent Internal error'));
-
-                    var oldMessage = commands.dbMessage;
-                    oldMessage.command = 'modifyChoiceType';
-                    oldMessage.Id = messageSent.result.message_id;
-                    options.messageToSave = new Models.message(oldMessage);
-                    return saveNewMessage(options, callback);
+                    if(err) 
+                        return callback(err);                    
+                    return callback(null, messageSent);
                 })
             });
     },
@@ -514,7 +492,7 @@ module.exports = {
             }
             )
     },
-    sendOptionsKeyboard: function sendOPtions(options, callback){
+    sendOptionsKeyboard: function sendOptions(options, callback){
         var Choice = this;
         return Choice.getChoices({filter:{_poll: options.poll.id, deleted: 0}}, 
             function onGet(err, choices){
@@ -534,16 +512,19 @@ module.exports = {
                         options.messageToSend ={
                             text: '<b>' + options.poll.name + '</b>',
                             parse_mode: 'HTML',
-                            chat_id: options.chat.id,
                             reply_markup: JSON.stringify({
                                 inline_keyboard: keyboards
                             })
                         }
-                        
-                        debug(updateMessage);
+
+                        if(options.inline_message_id){
+                            options.messageToSend.inline_message_id = options.inline_message_id;
+                        }else{
+                            options.messageToSend.message_id = options.message.message_id;
+                            options.messageToSend.chat_id = options.chat.id;
+                        }
 
                         if(updateMessage){
-                            options.messageToSend.message_id = updateMessage;
                             options['functionApi'] = 'editMessageText';
                         }
                         return launchReturnMessage(options, function onSend(err, backMessage){
@@ -610,13 +591,12 @@ module.exports = {
         if(typeof options.mode != 'undefined')
             mode = options.mode;
 
-        if(typeof options.chatType != 'undefined')
-            chatType = options.chatType.toLowerCase();
+        if(typeof options.poll_type != 'undefined' && options.poll_type=='building'){
+            mode = 'options';
+        }
 
 
         var choices = options.choices;
-
-        debug(choices);
 
         var keyboards =[], keyboardLine = [];
         var nCol = Math.round(choices.length/5);
@@ -630,7 +610,7 @@ module.exports = {
 
                 var name = (typeof choice.name == 'undefined') ?  '' : choice.name;
                 var priceString = typeof choice.price == 'undefined' ? '#€' : choice.price+'€';
-                var text = 'Votez : ' + name + ' - ' + priceString;
+                var text = name + ' - ' + priceString;
                 var callback_data = 'executeCommand/voteChoice/' + String(choice.ordre);
                 var obj = {text: text, callback_data: callback_data};
 
@@ -638,7 +618,7 @@ module.exports = {
                     //modification
                     keyboardLine.push({
                         text: '✍🏿',
-                        callback_data: 'executeCommand/sendModifyInlineChoice/'+ poll_id + '/' + choice.ordre
+                        callback_data: 'executeCommand/modifyChoice/'+ poll_id + '/' + choice.ordre
                     });
 
                     keyboardLine.push({
@@ -667,7 +647,7 @@ module.exports = {
         if(keyboardLine.length > 0)
             keyboards.push(keyboardLine);
 
-        if(chatType ==  'private'){
+        if(mode ==  'options'){
             //On ecrit des fonctions supplementaires
             keyboardLine = [];
 
@@ -826,11 +806,13 @@ module.exports = {
         this.init();
         var Choice = this;
         var commands = options.commands;
+        var order = commands.param[1];
 
         //On extrait l'ordre
-        return Choice.getChoice({ordre: commands.param2, _poll: options.poll._id},
+        return Choice.getChoice({ordre: order, _poll: options.poll._id},
             function onFind(err, choice){
-                if(err) return callback(err);
+                if(err) 
+                    return callback(err);
 
                 if(!choice) 
                     return showPopUp({text: "Pas de choix a supprimer", callback_query_id: options.queryId}, callback);
@@ -841,7 +823,7 @@ module.exports = {
                 return updateChoice.save({}, function onSave(err, choiceSaved){
                     if(err) 
                         return callback(err);
-                    return showPopUp({text: "Choix n°" + commands.param2 + " supprimé", callback_query_id: options.queryId}, callback);
+                    return showPopUp({text: "Choix n°" + order + " supprimé", callback_query_id: options.queryId}, callback);
                 })
             })
     }

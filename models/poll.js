@@ -13,11 +13,6 @@ var pollSchema = new Schema({
     name: {
         type: String
     },
-    chatId: {
-        type: String,
-        required: true,
-        index: true
-    },
     userId: {
         type: String,
         required: true,

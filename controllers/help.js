@@ -21,16 +21,12 @@
 
  var searchCommand  = function(options, cb){
 
-    return MessageModel.findOne({Id: options.messageId, chatId: options.chatId, treated: false},
+    return MessageModel.findOne(options.filter,
         function onFind(err, messageFound){
-            if(err) return cb(err);
-            if(!messageFound) return cb(null, {command: 'notFound'});
-
-            if(typeof messageFound.userId != 'undefined') {
-                debug(messageFound);
-                if (messageFound.userId != options.from.id)
-                    return cb(null, {command: 'noRight'});
-            }
+            if(err) 
+                return cb(err);
+            if(!messageFound) 
+                return cb(null, {command: 'notFound'});
 
             var returnVal = {
                 command: messageFound.command,
@@ -56,48 +52,71 @@ var getCommandRegex = function onGet(command, callback){
 
     if(myRegex.test(command)){
         var result = command.match(myRegex);
-        debug(result);
-        return callback(null, {command: result[0], param: result[1], param2: result[2]});
+        var command = result[0];
+        result.splice(0,1);
+
+        return callback(null, {command: command, param: result});
     }
     return callback(null, null);
 };
 module.exports =  {
     extractCommand: function extractCommand(options, callback){
 
+        var myCommandRegex = /^executeCommand(\/.+)$/;
         var message = options.message;
         var messageId = null;
+
+        //Prevoir une liste de commandes pouvant etre servies par luser
+        var avUserCommands = ['/createpoll'];
+
         if(options.typeQuery == 'command'){
             var command = message.text;
 
-            if(message.hasOwnProperty('reply_to_message')){
-                messageId = message['reply_to_message']['message_id'];
-
-                return searchCommand({messageId :messageId, chatId: message.chat.id, from: message.from},
-                    function onExtract(err, commandFound){
-                        if(err) return callback(err);
-                        if(commandFound){
-                            if(!commandFound.param)
-                                commandFound.param = [message.text];
-                            else
-                                commandFound.param.push(message.text);
-                            return callback(null, commandFound);
-                        }
-                        return getCommandRegex(command, callback);
-                    })
-            }else{
-                return getCommandRegex(command, callback);
+            if(avUserCommands.indexOf(command) > -1){
+                command = command.substring(1)
+                return callback(null, {command: command, param: []});
             }
+
+            return searchCommand({filter: {nextAction: true , userId: options.from.id, treated: false}},
+                function onExtract(err, commandFound){
+                    if(err) 
+                        return callback(err);
+                    debug(commandFound);
+
+                    if(commandFound.dbMessage){
+                        if(!commandFound.param)
+                            commandFound.param = [message.text];
+                        else
+                            commandFound.param.push(message.text);
+
+                        //On definit le message en treated
+                        commandFound.dbMessage.treated = true;
+                        commandFound.dbMessage.nextAction = false;
+
+                        var newMessage = new Models.message(commandFound.dbMessage);
+                        return newMessage.save({}, function onSave(err, savedMessage){
+                            if(err)
+                                return callback(err);
+                            
+                            debug(savedMessage);
+
+                            return callback(null, commandFound);
+                        })
+                    }
+                    return callback(null, null);
+            })
+            
         }else if(options.typeQuery == 'callback'){
-            messageId = message['message_id'];
-            var chatId = message.chat.id;
 
             //On verfie si ce n'est pas un bouton qui execute une commande
-            var myCommandRegex = /^executeCommand(\/.+)$/;
             if(myCommandRegex.test(options.data)){
                 var result = myCommandRegex.exec(options.data);
                 return getCommandRegex(result[1], callback);
             }else{
-                return searchCommand({messageId: messageId, chatId: chatId, from: options.from},
+                var messageId = message['message_id'];
+                var chatId = message.chat.id;
+
+                return searchCommand({filter:{Id: messageId, chatId: chatId, from: options.from.id, treated: false}},
                     function onExtract(err, commandFound){
                         if(err) return callback(err);
                         commandFound.param = options.data;
@@ -158,39 +177,35 @@ module.exports =  {
                 return callback(null, backMessage);
             });
     },
-    showMessage: function onShow(action, options, callback){
+    showMessage: function onShow(action, queryId, callback){
         var messageToSend = {
-            text: '<pre>Commande inconnue. /help pour la liste des commandes </pre>',
-            chat_id: options.chatId,
-            parse_mode: 'HTML'
+            text: '',
+            callback_query_id: queryId
         };
 
         switch (action){
             case 'noPoll':
-            messageToSend.text = '<pre>Pas de Poll disponible pour cette action</pre>';
+            messageToSend.text = 'Pas de Poll disponible pour cette action';
             break;
             case 'noChoice':
-            messageToSend.text = '<pre>Veuillez ajouter plus de choix</pre>';
+            messageToSend.text = 'Veuillez ajouter plus de choix';
             break;
             case 'pollAlready':
-            messageToSend.text = '<pre>Impossible un poll exite déja</pre>';
+            messageToSend.text = 'Impossible un poll exite déja';
             break;
             case 'error':
-            messageToSend.text = '<pre>Une erreur interne est survenue</pre>';
-            debug('Error: '+options.command+' '+options.err);
+            messageToSend.text = 'Une erreur interne est survenue';
             break;
             case 'buildingPoll':
-            messageToSend.text = '<pre>Le poll n\'est pas encore lancé! : </pre>/launch';
+            messageToSend.text = 'Le poll n\'est pas encore lancé!';
             break;
             case 'launchedPoll':
-            var username = (typeof options.from.username === 'undefined')
-            ? options.from['first_name'] + '' + options.from['last_name']: '@'+options.from.username;
             messageToSend.text = username + ' <pre> Impossible Le poll est lancé</pre>';
             break;
 
         }
 
-        return Functions.callTelegramApi('sendMessage', messageToSend,
+        return Functions.callTelegramApi('answerCallbackQuery', messageToSend,
             function onSend(err, backMessage){
                 if (err) return messageEvent.emit('error', err, callback);
                 return messageEvent.emit('messageSent', backMessage, callback); 
@@ -199,12 +214,11 @@ module.exports =  {
     answerInlineQuery: function sendAnswer(options, callback){
         var answerQuery = {
             inline_query_id: options.inline_query_id,
-            results: JSON.stringify(options.pollInline)
+            results: JSON.stringify(options.pollInline),
+            cache_time: 100
         }
-        debug(answerQuery);
         return Functions.callTelegramApi('answerInlineQuery', answerQuery,
             function onSend(err, backMessage){
-                debug(backMessage);
                 if(err|| backMessage.ok == false)
                     return callback(err);
                 return callback(null, backMessage);

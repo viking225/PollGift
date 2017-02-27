@@ -12,7 +12,7 @@ var messageSchema = new Schema({
     },
     chatId: {
         type: String,
-        required: true,
+        required: false,
         index: true
     },
     userId: {
@@ -23,6 +23,10 @@ var messageSchema = new Schema({
         required: true
     },
     treated: {
+        type: Boolean,
+        default: 0
+    },
+    nextAction: {
         type: Boolean,
         default: 0
     }
