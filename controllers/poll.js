@@ -89,7 +89,12 @@ var formatMessage = function(polls, cb){
         if(polls.hasOwnProperty(index)){
             compteur++;
             var poll = polls[index];
-            var question_text = poll.name.length > 1 ? poll.name : 'Votez !';
+            var question_text = poll.name.length > 1 ? poll.name : '';
+            
+            if(poll.type == 'ready'){
+                question_text = 'Votez !';
+            }
+            
             var input_message_content = {
                 message_text: '<b>'+ question_text +'</b>',
                 parse_mode: 'HTML'
@@ -226,16 +231,30 @@ var poll = {
             if(err) return cb(err);
             if(!savedVote) return cb(new Error('Pas de sauvegarde du vote'));
 
+            var functionApi = 'sendMessage';
+
             var messageToSend = {
-                text: '<pre>Le Poll est lancé !</pre>',
-                chat_id: options.chat.id,
-                parse_mode: 'HTML'
+                text: '<pre>Le Poll est lancé, vous pouvez désormais le partagez et commencer a voter !</pre>',
+                parse_mode: 'HTML',
+                reply_markup: JSON.stringify({
+                    inline_keyboard: [[]],
+                })
             } ;
 
+            if(options.inline_message_id){
+                messageToSend.inline_message_id = options.inline_message_id;
+                functionApi = 'editMessageText';
+            }else{
+                messageToSend.chat_id = options.chat.id;
+            }
+
+            debug(messageToSend);
+
             return launchReturnMessage(function(err, message){
-                if(err) return cb(err);
+                if(err) 
+                    return cb(err);
                 return cb(null, message);
-            }, {messageToSend: messageToSend});
+            }, {messageToSend: messageToSend, functionApi: functionApi});
         });
     },
     launchDeletePoll: function launchDeletePoll(options, cb){
@@ -342,9 +361,13 @@ var poll = {
                 var poll = polls[index];
 
                 (function (innerPoll){
-                    debug(innerPoll.choices);
+                    var mode = 'options';
+
+                    if(innerPoll.type == 'ready')
+                        mode = 'public';
+                    
                     //On rempli chaque poll avec les choix possibles
-                    Poll.ChoiceController.constructKeyboard({choices: innerPoll.choices, poll_type: innerPoll.type, sendName: innerPoll.name, poll_id: innerPoll._id}, 
+                    Poll.ChoiceController.constructKeyboard({mode: mode, choices: innerPoll.choices, poll_type: innerPoll.type, sendName: innerPoll.name, poll_id: innerPoll._id}, 
                         function onBuild(err, keyboards){
                             if(err)
                                 return cb(err);

@@ -25,7 +25,6 @@ var mongoose = require('mongoose');
     return Functions.callTelegramApi(func, messageOptions,
         function onSend(err, backMessage){
 
-            debug(backMessage);
             if (err || backMessage.ok == false) 
                 return cb(err);
             return cb(null, backMessage);
@@ -292,117 +291,6 @@ module.exports = {
                 })
             });
     },
-    sendModifyInline: function onSend(options, callback){
-        this.init();
-        var Choice = this;
-
-        var myPoll = options.poll;
-
-        //Modification Impossible
-        if(myPoll.userId != options.message.from.id){
-            options.messageToSend = {
-                text: '<pre>Vous navez pas le droit de modifier ce Poll</pre>',
-                chat_id: options.chat.id,
-                parse_mode: 'HTML'
-            } ;
-
-            return launchReturnMessage(options,
-                function onMessageSend(err, messageSent){
-                    if(err) return callback(err);
-                    return callback(null, null);
-                })
-        }
-
-        //Send Inline Options,
-        //get Choices
-        return Model.find({_poll: myPoll._id}, function onFind(err, choices){
-            if(err) return callback(err);
-
-            return Choice.constructKeyboard({choices: choices, chatType: options.chat.type}, function onBuild(err, keyboards){
-                if(keyboards.length > 0){
-                    options.messageToSend = {
-                        text: '<pre>Je vais vous aider a modifier les différents choix, cliquez sur celui a modiifer</pre>',
-                        parse_mode: 'HTML',
-                        chat_id: options.chat.id,
-                        reply_markup: JSON.stringify({
-                            inline_keyboard: keyboards
-                        })
-                    } ;
-                }else{
-                    options.messageToSend = {
-                        text: '<pre>Veuillez ajouter plus de choix</pre>',
-                        chat_id: options.chat.id,
-                        reply_to_message_id: options.message.message_id,
-                        parse_mode: 'HTML'
-                    } ;
-                }
-
-                return launchReturnMessage(options,
-                    function onMessageSend(err, messageSent){
-                        if(err) return callback(err);
-                        if(messageSent.ok == false){
-                            return callback(new Error('Internal error'));
-                        }
-                        if(typeof options.messageToSend.reply_markup != 'undefined'){
-                            //not undefined on save
-                            options.messageToSave = new Models.message({
-                                userId: options.message.from.id,
-                                chatId: messageSent.result.chat.id,
-                                Id: messageSent.result['message_id'],
-                                command: 'modifyChoice'
-                            });
-                        }
-                        return saveNewMessage(options, callback);
-                    })
-            });
-        })
-    },
-    sendVoteInline: function onSend(options, callback){
-        this.init();
-        var Choice = this;
-
-        var myPoll = options.poll;
-        return Choice.getChoices({filter:{_poll: myPoll._id}},
-            function onGet(err, choices){
-                if(err) return callback(err);
-
-                return Choice.constructKeyboard({choices: choices, chatType: options.chat.type},
-                    function onBuild(err, keyboards){
-                        options.functionApi = 'editMessageText';
-                        if(keyboards.length > 0){
-                            options.messageToSend = {
-                                text: '<b>Votez</b>',
-                                parse_mode: 'HTML',
-                                chat_id: options.chat.id,
-                                reply_markup: JSON.stringify({
-                                    inline_keyboard: keyboards
-                                })
-                            } ;
-                        }else{
-                            options.messageToSend = {
-                                text: '<b>Veuillez ajouter plus de choix</b>',
-                                chat_id: options.chat.id,
-                                parse_mode: 'HTML'
-                            } ;
-                        }
-                        options.messageToSend.message_id = options.message.message_id;
-
-
-                        return launchReturnMessage(options,
-                            function onSend(err, messageSent){
-                                if(err) return callback(err);
-                                if(typeof options.messageToSend.reply_markup != 'undefined'){
-                                    options.messageToSave = new Models.message({
-                                        chatId: messageSent.result.chat.id,
-                                        Id: messageSent.result['message_id'],
-                                        command: 'voteChoice/' + myPoll._id
-                                    });
-                                }
-                                return saveNewMessage(options, callback);
-                            });
-                    });
-            });
-    },
     saveVoteChoice: function onSave(options, callback){
         this.init();
         var Choice = this;
@@ -410,9 +298,10 @@ module.exports = {
         var commands = options.commands;
 
         //On recupere le choix
-        return Model.findOne({ordre: options.data, _poll: myPoll._id},
+        return Model.findOne({ordre: commands.param[1], _poll: myPoll._id},
             function onFind(err, choiceFinded){
-                if(err) return callback(err);
+                if(err) 
+                    return callback(err);
 
                 var messageToSend = 'Ce choix a été supprimé';
 
@@ -424,9 +313,10 @@ module.exports = {
                 messageToSend = username+' a voté pour '+choiceFinded.name;
 
                 //On recupere l'ancien vote si il y en a un
-                return Models.vote.findOne({userId: options.from.id, chatId: options.chat.id},
+                return Models.vote.findOne({userId: options.from.id, _poll: myPoll._id},
                     function onFind(err, oldVote){
-                        if(err) return callback(err);
+                        if(err) 
+                            return callback(err);
 
                         if(oldVote) {
                             messageToSend = username + ' Vote modifié pour '+choiceFinded.name;
@@ -434,19 +324,20 @@ module.exports = {
                         }else{
                             oldVote = new Models.vote({
                                 userId: options.from.id,
-                                chatId: options.chat.id,
-                                _choice: choiceFinded.id
+                                _choice: choiceFinded.id,
+                                _poll: myPoll._id
                             });
                         }
 
                         return oldVote.save({}, function onSave(err){
-                            if(err) return callback(err);
+                            if(err) 
+                                return callback(err);
                             return showPopUp({text: messageToSend, callback_query_id: options.queryId}, callback);
                         })
                     }
-                    )
+                )
             }
-            );
+        );
     },
     sendDetailsResult: function sendResult(options, callback){
         var Choice =this;
@@ -548,56 +439,84 @@ module.exports = {
                     })
             })
     },
-    sendResults: function sendResults(options, cb){
+    updateResults: function sendResults(options, cb){
         //On recupere les choices
         var Choice = this;
-        return Choice.getChoices({filter:{_poll: options.poll._id}, populateVote: true},
-            function onGet(err, choices){
-                if(err) return cb(err);
+        return Choice.getChoices({filter:{_poll: options.poll._id, deleted: false}, populateVote: true},
+            function onGet(err, choices, numberVotes){
+                if(err) 
+                    return cb(err);
 
                 if(choices){
                     choices.sort(sortChoices);
                 }
-                return Choice.constructKeyboard({choices: choices, mode: 'results', chatType: options.chat.type},
+
+                debug(choices);
+
+                return Choice.constructKeyboard({choices: choices, mode: 'public', poll_id: options.poll.id, sendName: options.poll.name},
                     function onBuild(err, keyboards){
-                        if(err) return cb(err);
-                        if(keyboards.length > 0){
-                            options.messageToSend = {
-                                text: '<pre>Résultats Actuel du vote</pre>',
-                                parse_mode: 'HTML',
-                                chat_id: options.chat.id,
-                                reply_markup: JSON.stringify({
-                                    inline_keyboard: keyboards
-                                })
-                            } ;
-                        }else{
-                            options.messageToSend = {
-                                text: '<pre>Veuillez ajouter plus de choix</pre>',
-                                chat_id: options.chat.id,
-                                reply_to_message_id: options.message.message_id,
-                                parse_mode: 'HTML'
-                            } ;
-                        }
+                        if(err)
+                            return callback(err);
 
-                        return launchReturnMessage(options,
-                            function onMessageSend(err, messageSent){
-                                if(err) return cb(err);
+                        return Choice.getResultsText({choices: choices, poll: options.poll},
+                            function onBuild(err, text){
+                                if(err) 
+                                    return cb(err);
 
-                                if(typeof options.messageToSend.reply_markup != 'undefined'){
-                                    //not undefined on save
-                                    options.messageToSave = new Models.message({
-                                        chatId: messageSent.result.chat.id,
-                                        Id: messageSent.result['message_id'],
-                                        command: 'noLinkOpen'
-                                    });
+                                options.messageToSend = {
+                                    text: text,
+                                    parse_mode: 'HTML',
+                                    reply_markup: JSON.stringify({
+                                        inline_keyboard: keyboards
+                                    })
                                 }
-                                return saveNewMessage(options, cb);
-                            }
-                            );
+
+                                if(options.inline_message_id){
+                                    options.messageToSend.inline_message_id = options.inline_message_id;
+                                }else{
+                                    options.messageToSend.message_id = options.message.message_id;
+                                    options.messageToSend.chat_id = options.chat_id;
+                                }
+                                options.functionApi = 'editMessageText';
+
+                                return launchReturnMessage(options, function onSend(err, messageSent){
+                                    if(err)
+                                        return cb(err);
+                                    return cb(null, messageSent);
+                                })
+                            })
                     })
             })
     },
+    getResultsText: function(options, callback){
+
+        var string = '';
+        var choices = options.choices;
+
+        // On recupere le nombre total de votes
+        Models.vote.count({_poll: options.poll._id}, function(err, count){
+
+            var order = 1;
+            for(var prop2 in choices){
+                if(choices.hasOwnProperty(prop2)){
+
+                    var choice = choices[prop2];
+                    string += order+'.'+choice.name+': ';
+
+                    for(var index=0; index < choice.votes.length; index++)
+                        string +='⭐️';
+
+                    string +=". \n";
+                    order++;
+                }
+            }
+
+            return callback(null, string);
+
+        });
+    },
     constructKeyboard: function(options, callback){
+
         var mode = 'view';
         var chatType = 'group';
 
@@ -623,8 +542,8 @@ module.exports = {
 
                 var name = (typeof choice.name == 'undefined') ?  '' : choice.name;
                 var priceString = typeof choice.price == 'undefined' ? '#€' : choice.price+'€';
-                var text = name + ' - ' + priceString;
-                var callback_data = defaultConf.executeCommand+'/voteChoice/' + String(choice.ordre);
+                var text = name + ' - ' + priceString+' 📩';
+                var callback_data = defaultConf.executeCommand+'/voteChoice/' +poll_id+'/'+choice.ordre;
                 var obj = {text: text, callback_data: callback_data};
 
                 if(mode == 'options'){
@@ -696,17 +615,25 @@ module.exports = {
 
             keyboards.push(keyboardLine);
             keyboardLine = [];
+        }
+        else if(mode == 'public'){
 
-            if(typeof options['sendName'] != 'undefined'){
-                var sendButton = {
+            keyboardLine.push({
+                text: 'Refresh result',
+                callback_data: defaultConf.executeCommand+'/refreshResult/'+poll_id
+            });
+
+            keyboards.push(keyboardLine);
+            keyboardLine = [];
+
+            if(typeof options.sendName != 'undefined'){
+                keyboardLine.push({
                     text: 'Send',
                     switch_inline_query: options['sendName']
-                }
-                keyboardLine.push(sendButton);
-            }
-
-            if(keyboardLine.length > 0)
+                });
                 keyboards.push(keyboardLine);
+                keyboardLine = [];
+            }
         }
 
         return callback(null, keyboards);

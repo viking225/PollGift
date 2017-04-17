@@ -10,9 +10,9 @@ var voteSchema = new Schema({
         type: Schema.Types.ObjectId,
         ref: 'Choice'
     },
-    chatId:{
-        type: String,
-        required: true
+    _poll:{
+        type: Schema.Types.ObjectId,
+        ref: 'Poll'
     },
     userId:{
         type: String,
