@@ -558,11 +558,18 @@ module.exports = {
                         callback_data: defaultConf.executeCommand+'/deleteChoiceReal/'+ poll_id + '/' + choice .ordre
                     });
                 }else{
-                    keyboardLine.push({
-                        text: '👾',
-                        callback_data: 'openLink',
-                        url: choice.link
-                    });
+                    if(choice.link){
+                        keyboardLine.push({
+                            text: '👾',
+                            callback_data: 'openLink',
+                            url: choice.link
+                        });
+                    }else{
+                        keyboardLine.push({
+                            text: '🙈',
+                            callback_data: defaultConf.executeCommand+'/noLinkOpen/'+ poll_id + '/',
+                        });
+                    }
                 }
 
                 keyboardLine.push(obj);

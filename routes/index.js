@@ -409,10 +409,10 @@ var launchCommands = function(res, options){
 
 
         case 'noLinkOpen':
-        return Help.showNoLinkPopUp(options, function onShown(err) {
-            if (err) return Help.showMessage('error', {command: commands.command, err: err, chatId: options.chat.id},
-                function () {return res.end()});
-                return res.end();
+        return Help.showMessage('noLink', options.queryId, function onShown(err) {
+            if (err) 
+                return Help.showMessage('error', options.queryId,function () {return res.end()});
+            return res.end();
         });
         break;
 

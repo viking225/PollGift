@@ -165,19 +165,6 @@ module.exports =  {
             });
 
     },
-    showNoLinkPopUp : function showPopUp(options, callback){
-        var message = 'Pas de lien';
-        var callBackOptions = {
-            text: message,
-            callback_query_id:  JSON.stringify(options.queryId)
-        };
-
-        return Functions.callTelegramApi('answerCallbackQuery', callBackOptions,
-            function onSend(err, backMessage){
-                if(err || backMessage.ok == false) return callback(err);
-                return callback(null, backMessage);
-            });
-    },
     showMessage: function onShow(action, queryId, callback){
         var messageToSend = {
             text: '',
@@ -201,7 +188,10 @@ module.exports =  {
             messageToSend.text = 'Le poll n\'est pas encore lancé!';
             break;
             case 'launchedPoll':
-            messageToSend.text = username + ' <pre> Impossible Le poll est lancé</pre>';
+            messageToSend.text = 'Impossible Le poll est lancé';
+            break;
+            case 'noLink':
+            messageToSend.text = 'Pas de lien disponible';
             break;
 
         }
