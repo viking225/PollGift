@@ -74,9 +74,10 @@ var formatMessage = function(polls, cb){
     //Le sticker de creattion de nouveau messaeg
     compteur ++;
     var obj = {
-        type: 'sticker',
+        type: 'article',
         id: compteur+'',
-        sticker_file_id: 'BQADBAADaAADsZotA08J7aKo7J64Ag',
+        title: '[New Poll]',
+        // sticker_file_id: 'BQADBAADaAADsZotA08J7aKo7J64Ag',
         input_message_content: {
             message_text: '/createpoll'
         }

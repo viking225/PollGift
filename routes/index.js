@@ -20,9 +20,9 @@ router.post('/',
         if(req.body['edited_message'])
             return res.end();
 
-        try{
+        try{      
             debug(req.body);
-            
+
             if(req.body.message){
                 options = {
                     message: req.body.message,
@@ -496,21 +496,13 @@ var launchCommands = function(res, options){
                 })
             }
 
-            if(pollFinded.type != 'building'){
-                return Help.showMessage('launchedPoll', options.queryId, function onSend(err) {
-                    if (err) 
-                        return Help.showMessage('error', options.queryId,
-                            function () {return res.end()});
-                    return res.end();
-                })
-            }
-
             options.poll = pollFinded;
             
             return Choice.sendModifyInlineChoice(options, function onSend(err) {
                 if (err) 
                     return Help.showMessage('error', options.queryId,
                         function () {return res.end()});
+                debug('sended');
                 return res.end();
             })
         });
@@ -534,18 +526,15 @@ var launchCommands = function(res, options){
                     return res.end();
                 })
             }
-            if(pollFinded.type != 'building'){
-                return Help.showMessage('launchedPoll', options.queryId, function onSend(err) {
-                    if (err) 
-                        return Help.showMessage('error', options.queryId,function () {return res.end()});
-                    return res.end();
-                })
-            }
+
             options.poll = pollFinded;
             return Choice.sendModifyInlineType(options, function onSend(err) {
-                if (err) return Help.showMessage('error', options.queryId,
+                if (err) {
+                    debug(err);
+                    return Help.showMessage('error', options.queryId,
                     function () {return res.end()});
-                    return res.end();
+                }
+                return res.end();
             })
         });
         break;
@@ -567,14 +556,6 @@ var launchCommands = function(res, options){
                 })
             }
 
-            if(pollFinded.type != 'building'){
-                return Help.showMessage('launchedPoll', options.queryId, function onSend(err) {
-                    if (err) return Help.showMessage('error', options.queryId,
-                        function () {return res.end()});
-                        return res.end();
-                })
-            }
-
             options.poll = pollFinded;
             return Choice.saveAttr(options, function onSave(err) {
                 if (err) 
@@ -584,7 +565,6 @@ var launchCommands = function(res, options){
                     if(err)
                         return Help.showMessage('error', options.queryId,
                             function () {return res.end()});
-                    debug('OPtion keyboard sent');
                     return res.end();
                 });
                 return res.end();

@@ -4,6 +4,7 @@
 
  var Functions = require('../functions');
  var commandsJson = require('../config').commands;
+ var defaultConf = require('../config').default;
  var EventEmitter = require('events').EventEmitter;
  var Models = require('./../models');
  var MessageModel = Models.message;
@@ -62,7 +63,7 @@ var getCommandRegex = function onGet(command, callback){
 module.exports =  {
     extractCommand: function extractCommand(options, callback){
 
-        var myCommandRegex = /^executeCommand(\/.+)$/;
+        var myCommandRegex = new RegExp('^'+defaultConf.executeCommand+'(\/.+)$');
         var message = options.message;
         var messageId = null;
 

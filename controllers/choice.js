@@ -1,7 +1,7 @@
 /**
  * Created by Tanoh Kevin on 16/10/2016.
  */
-
+var defaultConf = require('../config').default;
 var mongoose = require('mongoose');
  var request = require('request');
  var Functions = require('../functions');
@@ -24,8 +24,8 @@ var mongoose = require('mongoose');
     
     return Functions.callTelegramApi(func, messageOptions,
         function onSend(err, backMessage){
-                        debug(backMessage);
 
+            debug(backMessage);
             if (err || backMessage.ok == false) 
                 return cb(err);
             return cb(null, backMessage);
@@ -159,24 +159,34 @@ module.exports = {
                     messageToSend.chat_id = options.chat.id
                 }
 
-                //controle en amont
-                if(commands.param[0] == 'price' && !/^[\d.]+$/.test(options.message.text) ){
-                    messageToSend.text = "Fuck you too :)";
-                    return launchReturnMessage({messageToSend: messageToSend, functionApi: functionApi}, cb);
-                }
-                if(commands.param[0] == 'link'){
-                    return request.get({url:options.message.text}, function(err, httpResponse, body){
-                        if(err || httpResponse.statusCode != 200){
-                            messageToSend.text = 'Lien non valide !';
-                            return launchReturnMessage({messageToSend: messageToSend, functionApi: functionApi}, cb);
-                        }
-                        return launchSaveChoice({choiceFinded: choiceFinded, messageToSend: messageToSend, commands: commands, text: commands.param[3]}, cb);
-                    });
-                }else{
+                // set message as treated
+                var messageToSave = new Models.message(options.commands.dbMessage);
+                messageToSave.treated = true;
+                messageToSave.nextAction = false;
+
+                return saveNewMessage({messageToSave: messageToSave}, function onSave(err, savedMessage){
+                    if(err){
+                        return cb(err);
+                    }
+
+                    //controle en amont
+                    if(commands.param[0] == 'price' && !/^[\d.]+$/.test(options.message.text) ){
+                        messageToSend.text = "Fuck you too :)";
+                        return launchReturnMessage({messageToSend: messageToSend, functionApi: functionApi}, cb);
+                    }
+
+                    if(commands.param[0] == 'link'){
+                        return request.get({url:options.message.text}, function(err, httpResponse, body){
+                            if(err || httpResponse.statusCode != 200){
+                                messageToSend.text = 'Lien non valide !';
+                                return launchReturnMessage({messageToSend: messageToSend, functionApi: functionApi}, cb);
+                            }
+                        });
+                    }
                     return launchSaveChoice({choiceFinded: choiceFinded, messageToSend: messageToSend, commands: commands, text: commands.param[3]}, cb);
-                }
-            });
-        //On recupere le choice
+                });
+            }
+        );
     },
     sendModifyInlineType: function onSend(options, callback){
         this.init();
@@ -200,7 +210,7 @@ module.exports = {
                 messageText += 'Veuillez saisir le prix (Des nombres stp fait pas tout peter)';
                 break;
             }
-
+            var idMessage = mongoose.Types.ObjectId();
             var messageToSend = {
                 text: messageText,
                 parse_mode: 'HTML',
@@ -210,7 +220,7 @@ module.exports = {
             };
             var functionApi = 'sendMessage';
             if(options.inline_message_id){
-                messageToSend.inline_message_id = options.inline_message_id;
+                idMessage = messageToSend.inline_message_id = options.inline_message_id;
                 functionApi = 'editMessageText';
             }
             else if(options.chat){
@@ -224,13 +234,15 @@ module.exports = {
                     return callback(err);
 
                 //On save l'entree utilistauer attendue
-                var idMessage = mongoose.Types.ObjectId();
                 var messageToSave = new Models.message({
                     userId: options.from.id,
                     Id: idMessage,
                     command: 'saveAttr/'+result[0]+'/'+result[1]+'/'+result[2]+'/',
-                    nextAction: true
+                    nextAction: true,
+                    treated: false
                 });
+
+                debug(messageToSave);
 
                 return saveNewMessage({messageToSave: messageToSave}, callback);
             });
@@ -256,9 +268,9 @@ module.exports = {
                     parse_mode: 'HTML',
                     reply_markup: JSON.stringify({
                         inline_keyboard: [
-                        [{text: 'Nom', callback_data: 'executeCommand/modifyChoiceType/'+options.poll._id+'/'+choiceFinded.ordre+'/name'}],
-                        [{text: 'Prix', callback_data: 'executeCommand/modifyChoiceType/'+options.poll._id+'/'+choiceFinded.ordre+'/price'}],
-                        [{text: 'Lien', callback_data: 'executeCommand/modifyChoiceType/'+options.poll._id+'/'+choiceFinded.ordre+'/link'}]
+                        [{text: 'Nom', callback_data: defaultConf.executeCommand+'/modifyChoiceType/'+options.poll._id+'/'+choiceFinded.ordre+'/name'}],
+                        [{text: 'Prix', callback_data: defaultConf.executeCommand+'/modifyChoiceType/'+options.poll._id+'/'+choiceFinded.ordre+'/price'}],
+                        [{text: 'Lien', callback_data: defaultConf.executeCommand+'/modifyChoiceType/'+options.poll._id+'/'+choiceFinded.ordre+'/link'}]
                         ],
                     })
                 } ;
@@ -271,6 +283,7 @@ module.exports = {
                 }
 
                 options['functionApi'] = 'editMessageText';
+                debug(options);
 
                 return launchReturnMessage(options, function onSend(err, messageSent){
                     if(err) 
@@ -611,19 +624,19 @@ module.exports = {
                 var name = (typeof choice.name == 'undefined') ?  '' : choice.name;
                 var priceString = typeof choice.price == 'undefined' ? '#€' : choice.price+'€';
                 var text = name + ' - ' + priceString;
-                var callback_data = 'executeCommand/voteChoice/' + String(choice.ordre);
+                var callback_data = defaultConf.executeCommand+'/voteChoice/' + String(choice.ordre);
                 var obj = {text: text, callback_data: callback_data};
 
                 if(mode == 'options'){
                     //modification
                     keyboardLine.push({
                         text: '✍🏿',
-                        callback_data: 'executeCommand/modifyChoice/'+ poll_id + '/' + choice.ordre
+                        callback_data: defaultConf.executeCommand+'/modifyChoice/'+ poll_id + '/' + choice.ordre
                     });
 
                     keyboardLine.push({
                         text: '❌',
-                        callback_data: 'executeCommand/deleteChoiceReal/'+ poll_id + '/' + choice .ordre
+                        callback_data: defaultConf.executeCommand+'/deleteChoiceReal/'+ poll_id + '/' + choice .ordre
                     });
                 }else{
                     keyboardLine.push({
@@ -654,24 +667,31 @@ module.exports = {
             //Bontoun d'ajout de choix
             var addButton = {
                 text: 'Add choice',
-                callback_data: 'executeCommand/add/'+poll_id
+                callback_data: defaultConf.executeCommand+'/add/'+poll_id
             };
             keyboardLine.push(addButton);
 
             var setNameButton = {
                 text: 'Change Question',
-                callback_data: 'executeCommand/setname/'+poll_id
+                callback_data: defaultConf.executeCommand+'/setname/'+poll_id
             }
             keyboardLine.push(setNameButton);
 
             //push options buttons
             keyboards.push(keyboardLine);
+            
             keyboardLine = [];
+            keyboardLine.push({
+                text: 'Launch Poll',
+                callback_data: defaultConf.executeCommand+'/launch/'+poll_id
+            });
+            keyboards.push(keyboardLine);
 
+            keyboardLine = [];
             //Bouton de suppression
             keyboardLine.push({
                 text: 'Delete Poll',
-                callback_data: 'executeCommand/delete/'+poll_id
+                callback_data: defaultConf.executeCommand+'/delete/'+poll_id
             });
 
             keyboards.push(keyboardLine);

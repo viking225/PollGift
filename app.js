@@ -23,10 +23,9 @@ HttpLogger.token('acTime', function(){
 
 var app = express();
 
-if(app.get('env') =='development'){
-	debug(app.get('env') );
-	app.use(HttpLogger(':acTime :method :url :status :response-time ms - :res[content-length]'));
-    // app.use(HttpLogger('dev'));
+if(app.get('env') =='development'){	
+	//app.use(HttpLogger(':acTime :method :url :status :response-time ms - :res[content-length]'));
+    app.use(HttpLogger('dev'));
 }else{
     app.use(HttpLogger(':acTime :method :url :status :response-time ms - :res[content-length]'));
 }
